@@ -24,7 +24,7 @@ Follow these steps to set up the project on a fresh Ubuntu/Debian server.
 *   **Data:** You must have a VeraCrypt container file ready (`vaults.hc`).
 
 ### 2. One-Time Setup
-Copy the project folder to your server (e.g., `/home/user/scripts/ctrl_s_master`), then run the installer. This script installs system dependencies (VeraCrypt, Bitwarden CLI, Python) and creates the virtual environment.
+Copy the project folder to your server (e.g., `/home/gravi-ctrl/scripts/ctrl_s_master`), then run the installer. This script installs system dependencies (VeraCrypt, Bitwarden CLI, Python) and creates the virtual environment.
 
 ```bash
 chmod +x setup.sh
@@ -47,7 +47,7 @@ sudo chmod 600 /root/.vc_secret
     ```bash
     sudo mkdir -p /mnt/secure_vaults
     sudo veracrypt --text --pim=0 --keyfiles="" --protect-hidden=no \
-        /home/user/scripts/ctrl_s_master/vaults.hc /mnt/secure_vaults
+        /home/gravi-ctrl/scripts/ctrl_s_master/vaults.hc /mnt/secure_vaults
     ```
 2.  **Create the required skeleton:**
     ```bash
@@ -57,12 +57,12 @@ sudo chmod 600 /root/.vc_secret
 3.  **Secure the .env file:**
     Move your configured `.env` file **INSIDE** the container. The script will symlink it dynamically during runs.
     ```bash
-    sudo mv /home/user/scripts/ctrl_s_master/.env /mnt/secure_vaults/.env
+    sudo mv /home/gravi-ctrl/scripts/ctrl_s_master/.env /mnt/secure_vaults/.env
     ```
 4.  **Set Permissions & Unmount:**
     ```bash
-    sudo chown -R user:user /mnt/secure_vaults
-    sudo veracrypt --text --dismount /home/user/scripts/ctrl_s_master/vaults.hc
+    sudo chown -R gravi-ctrl:gravi-ctrl /mnt/secure_vaults
+    sudo veracrypt --text --dismount /home/gravi-ctrl/scripts/ctrl_s_master/vaults.hc
     ```
 
 ---
@@ -158,13 +158,13 @@ If you need to retrieve a file from the vault manually, you must mount it to a t
 sudo mkdir -p /mnt/secure_vaults
 
 # 2. Mount (Will ask for password if .vc_secret is missing)
-sudo veracrypt --text --pim=0 --keyfiles="" --protect-hidden=no /home/user/scripts/ctrl_s_master/vaults.hc /mnt/secure_vaults
+sudo veracrypt --text --pim=0 --keyfiles="" --protect-hidden=no /home/gravi-ctrl/scripts/ctrl_s_master/vaults.hc /mnt/secure_vaults
 
 # 3. Explore
 ls -lh /mnt/secure_vaults/
 
 # 4. Unmount (Critical!)
-sudo veracrypt --text --dismount /home/user/scripts/ctrl_s_master/vaults.hc
+sudo veracrypt --text --dismount /home/gravi-ctrl/scripts/ctrl_s_master/vaults.hc
 ```
 
 ---
@@ -175,7 +175,7 @@ This suite is designed to run bi-weekly (2nd and 4th Friday of the month).
 
 **Add to Root Crontab (`sudo crontab -e`):**
 ```bash
-0 4 8-14,22-28 * * [ "$(date +\%u)" = 5 ] && /home/user/scripts/ctrl_s_master/run.sh
+0 4 8-14,22-28 * * [ "$(date +\%u)" = 5 ] && /home/gravi-ctrl/scripts/ctrl_s_master/run.sh
 ```
 
 ---
