@@ -141,7 +141,7 @@ def run_rsync_sync(source, dest, task_name, dry_run=False, excludes=None):
     print(f"Syncing FROM: {source}")
     print(f"Syncing TO:   {dest}")
 
-    cmd = ["rsync", "-av", "--delete"]
+    cmd = ["rsync", "-rltDv", "--delete"]
     if dry_run: cmd.append("--dry-run")
     
     if excludes:
@@ -159,7 +159,7 @@ def sync_2fa(dry_run=False):
 
 def sync_backups(dry_run=False):
     print("\n" + "="*70); print("--- Task: Encrypting General Backups ---")
-    return run_rsync_sync(SYNC_BACKUPS_SOURCE, SYNC_BACKUPS_DEST, "Sync Backups", dry_run, excludes=['_pvt', '.stfolder', '.stversions'])
+    return run_rsync_sync(SYNC_BACKUPS_SOURCE, SYNC_BACKUPS_DEST, "Sync Backups", dry_run, excludes=['_pvt', '.stfolder', '.git', '.stversions'])
 
 # --- Reporting ---
 

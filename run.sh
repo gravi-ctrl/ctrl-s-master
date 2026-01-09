@@ -7,7 +7,7 @@ MOUNT_POINT="/mnt/secure_vaults"
 SECRET_FILE="/root/.vc_secret"
 
 # --- MODE SELECTION ---
-# Default to NORMAL mode (identical to your original script)
+# Default to NORMAL mode
 MODE="NORMAL"
 LOG_FILE="$PROJECT_DIR/_logs/run_$(date +%Y%m%d_%H%M%S).log"
 BACKUP_DEST="/srv/data/assets/syncthing/My_Shit"
@@ -24,13 +24,20 @@ fi
 
 mkdir -p "$MOUNT_POINT"
 
-# Start Logging (Goes to file in Normal, Screen in Dry)
+# Start Logging
 echo "--- Starting Run at $(date) ---" >> "$LOG_FILE"
 
 # 1. MOUNT VERACRYPT
-# We send output to $LOG_FILE. In Normal mode, that's the file. In Dry, that's the screen.
+# --- PRE-CLEANUP: Prevent "device-mapper" zombie locks ---
+# We force a dismount of this specific container just in case a previous run didn't finish cleanly.
+sudo veracrypt -d "$VC_CONTAINER" > /dev/null 2>&1
+# Give the kernel a moment to release the device mapper
+sleep 2 
+# -------------------------------------------------------
+
 echo "Mounting container..." >> "$LOG_FILE"
 sudo veracrypt --text --non-interactive --pim=0 --keyfiles="" --protect-hidden=no \
+    -m=nokernelcrypto \
     --password=$(sudo cat $SECRET_FILE) "$VC_CONTAINER" "$MOUNT_POINT" >> "$LOG_FILE" 2>&1
 
 if [ $? -ne 0 ]; then
@@ -55,7 +62,7 @@ if [ "$MODE" == "DRY_RUN" ]; then
     python3 "$PROJECT_DIR/src/master_automation.py" run-tasks run-all --dry-run >> "$LOG_FILE" 2>&1
     EXIT_CODE=$?
 else
-    # Run Python normally (Original Logic)
+    # Run Python normally
     python3 "$PROJECT_DIR/src/master_automation.py" run-tasks run-all >> "$LOG_FILE" 2>&1
     EXIT_CODE=$?
 fi
@@ -80,7 +87,7 @@ rm "$PROJECT_DIR/.env" 2>/dev/null
 sudo veracrypt --text --non-interactive --dismount "$VC_CONTAINER" >> "$LOG_FILE" 2>&1
 
 # 6. BACKUP CONTAINER
-# logic: Only copy the container if we are in NORMAL mode AND python succeeded.
+# Only copy the container if we are in NORMAL mode AND python succeeded.
 if [ "$MODE" == "NORMAL" ]; then
     if [ $EXIT_CODE -eq 0 ]; then
         echo "Replicating encrypted container..." >> "$LOG_FILE"
