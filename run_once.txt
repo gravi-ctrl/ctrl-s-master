@@ -33,25 +33,13 @@ sudo veracrypt --text --pim=0 --keyfiles="" --protect-hidden=no /home/gravi-ctrl
 cd /mnt/secure_vaults
 sudo mkdir -p vaults/json vaults/kdbx 2fa backups
 
-# 4. MOVE the .env file inside (The Phantom Strategy)
-# Assuming you created the .env locally to configure it first
-sudo mv /home/gravi-ctrl/scripts/ctrl_s_master/.env /mnt/secure_vaults/.env
-
-# 5. PERMISSIONS (CRITICAL STEP)
+# 4. PERMISSIONS (CRITICAL STEP)
 # This ensures the script (running as you/root) can write, 
 # and you can read the files later.
 sudo chown -R gravi-ctrl:gravi-ctrl /mnt/secure_vaults
 
-# 6. Unmount
+# 5. Unmount
 cd ~
 sudo veracrypt --text --dismount /home/gravi-ctrl/scripts/ctrl_s_master/vaults.hc
-
----
-
-4. The Automation Schedule
-sudo crontab -e
-Paste:
-0 4 8-14,22-28 * * [ "$(date +\%u)" = 5 ] && /home/gravi-ctrl/scripts/ctrl_s_master/run.sh
-
 
   
