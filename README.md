@@ -46,8 +46,7 @@ sudo chmod 600 /root/.vc_secret
 1.  **Mount the container manually:**
     ```bash
     sudo mkdir -p /mnt/secure_vaults
-    sudo veracrypt --text --pim=0 --keyfiles="" --protect-hidden=no \
-        /home/gravi-ctrl/scripts/ctrl_s_master/vaults.hc /mnt/secure_vaults
+    sudo veracrypt --text --pim=0 --keyfiles="" --protect-hidden=no /home/gravi-ctrl/scripts/ctrl_s_master/vaults.hc /mnt/secure_vaults
     ```
 2.  **Create the required skeleton:**
     ```bash
