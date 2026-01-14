@@ -7,4 +7,3 @@ requests
 pytest
 argon2-cffi
 dateutils
-requests
