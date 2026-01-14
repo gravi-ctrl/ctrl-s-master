@@ -91,7 +91,7 @@ The Bitwarden export process requires an `Access Token` and several `UUIDs` from
     *   Inside the project, create three new secrets containing your: `client_id`, `client_secret`, and `Master Password`.
     *   In the project’s **People** tab, add your user account and grant it **Read** access. **This is a critical step.**
     *   Click each secret, then **Machine accounts**, and choose the Machine account with the Access token inside.
-	*   Copy each secret's **ID (UUID)**. These are the values for the `BW_*_CLIENT_ID_UUID`, `BW_*_CLIENT_SECRET_UUID`, and `BW_*_MASTER_PASSWORD_UUID` variables.
+        *   Copy each secret's **ID (UUID)**. These are the values for the `BW_*_CLIENT_ID_UUID`, `BW_*_CLIENT_SECRET_UUID`, and `BW_*_MASTER_PASSWORD_UUID` variables.
 
 4.  **Find Your Organization ID (If Needed):** This is only required if `BW_*_IS_ORGANIZATION` is set to `true`.
     *   In the Web Vault, open the **Admin Console** and select your Organization.
@@ -108,14 +108,21 @@ You will need a separate API token for each Raindrop.io account you want to back
 5.  On the next screen, click the **Create test token** button.
 6.  **Copy the generated token.** This is the value for `RAINDROP_PERSONAL_API_TOKEN` or `RAINDROP_WORK_API_TOKEN`. Repeat for your other account if necessary.
 
-#### **C. Getting a Google App Password for Email**
+#### **C. Getting Telegram Bot Credentials**
 
-To send email notifications using a Gmail account, you must use an App Password.
+To send report notifications via Telegram, you need a Bot Token and your numeric Chat ID.
 
-1.  Ensure **2-Step Verification** is enabled on your Google Account. App Passwords cannot be created without it.
-2.  Go directly to the App Passwords page: [https://myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
-3.  Type any name you want to identify it with (e.g., Email notifications for my project).
-4.  **Copy the 16-character password** shown in the yellow box (without spaces). This is the value for `EMAIL_PASSWORD`.
+1.  **Create the Bot:**
+    *   Open Telegram and search for **@BotFather**.
+    *   Send the command `/newbot`.
+    *   Follow the prompts to name your bot.
+    *   **Copy the API Token** provided (e.g., `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11`). This is the value for `TELEGRAM_BOT_TOKEN`.
+
+2.  **Get Your Chat ID:**
+    *   Start a chat with your new bot (click the link provided by BotFather and press Start).
+    *   Search for **@userinfobot** (or similar ID bots) and start it.
+    *   It will reply with your "Id".
+    *   **Copy this number.** This is the value for `TELEGRAM_CHAT_ID`.
 
 ---
 
@@ -126,7 +133,7 @@ To trigger the full backup cycle manually:
 ```bash
 sudo ./run.sh
 ```
-*This will mount the container, run all tasks, send the email report, and unmount.*
+*This will mount the container, run all tasks, send the Telegram report, and unmount.*
 
 ### Dry Run
 To trigger a dry run:
@@ -197,7 +204,7 @@ ctrl_s_master/
 │   └── 📁 _tools/                 # Helper scripts (Bitwarden, Raindrop, Crypto).
 │
 ├── 📁 _tests/                     # Pytest suite.
-├── 📁 _logs/                      # Execution logs (attached to emails).
+├── 📁 _logs/                      # Execution logs (attached to Telegram).
 ├── 📁 venv/                       # Isolated Python Environment.
 │
 ├── 🔗 vaults/                     # [SYMLINK] Created only during runtime.
