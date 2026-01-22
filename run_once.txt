@@ -33,6 +33,10 @@ sudo veracrypt --text --pim=0 --keyfiles="" --protect-hidden=no /home/gravi-ctrl
 cd /mnt/secure_vaults
 sudo mkdir -p vaults/json vaults/kdbx 2fa backups
 
+# 3.5 MOVE the .env file inside (The Phantom Strategy)
+# Assuming you created the .env locally to configure it first, and assuming you haven't done that already
+sudo mv /home/user/scripts/ctrl_s_master/.env /mnt/secure_vaults/.env
+
 # 4. PERMISSIONS (CRITICAL STEP)
 # This ensures the script (running as you/root) can write, 
 # and you can read the files later.
