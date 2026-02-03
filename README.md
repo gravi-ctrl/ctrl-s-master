@@ -60,7 +60,7 @@ sudo chmod 600 /root/.vc_secret
     ```
 4.  **Set Permissions & Unmount:**
     ```bash
-    sudo chown -R gravi-ctrl:gravi-ctrl /mnt/secure_vaults
+    sudo chown -R $(id -u):$(id -g) /mnt/secure_vaults
     sudo veracrypt --text --dismount /home/gravi-ctrl/scripts/ctrl_s_master/vaults.hc
     ```
 
