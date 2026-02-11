@@ -10,17 +10,17 @@ echo "========================================"
 
 # 1. Install System Dependencies & Repositories
 echo "[1/5] Installing System Prerequisites..."
-sudo apt update
+sudo apt-get update
 # software-properties-common is needed for add-apt-repository
-sudo apt install -y software-properties-common python3-venv python3-pip unzip rsync curl dos2unix
+sudo apt-get install -y software-properties-common python3-venv python3-pip unzip rsync curl dos2unix
 
 # 2. Install VeraCrypt
 echo "[2/5] Checking VeraCrypt..."
 if ! command -v veracrypt &> /dev/null; then
     echo "      - VeraCrypt not found. Adding PPA..."
     sudo add-apt-repository ppa:unit193/encryption -y
-    sudo apt update
-    sudo apt install -y veracrypt
+    sudo apt-get update
+    sudo apt-get install -y veracrypt
     echo "      - VeraCrypt installed successfully."
 else
     echo "      - VeraCrypt is already installed."
