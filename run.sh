@@ -9,7 +9,7 @@ SECRET_FILE="/root/.vc_secret"
 # --- MODE SELECTION ---
 MODE="NORMAL"
 LOG_FILE="$PROJECT_DIR/_logs/run_$(date +%Y%m%d_%H%M%S).log"
-BACKUP_DEST="/srv/data/assets/syncthing/My_Shit"
+BACKUP_DEST="/data/assets/syncthing/My_Shit"
 # File formatting
 TODAY=$(date +%Y-%m-%d)
 BACKUP_FILENAME="ctrl_s_master_${TODAY}.hc"
