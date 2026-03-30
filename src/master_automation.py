@@ -174,7 +174,7 @@ def sync_2fa(dry_run=False):
 
 def sync_backups(dry_run=False):
     print("\n" + "="*70); print("--- Task: Encrypting General Backups ---")
-    return run_rsync_sync(SYNC_BACKUPS_SOURCE, SYNC_BACKUPS_DEST, "Sync Backups", dry_run, excludes=['_pvt', '.stfolder', '.git', '.stversions'])
+    return run_rsync_sync(SYNC_BACKUPS_SOURCE, SYNC_BACKUPS_DEST, "Sync Backups", dry_run, excludes=['_pvt', '.stfolder', '.stversions'])
 
 # --- Reporting ---
 
