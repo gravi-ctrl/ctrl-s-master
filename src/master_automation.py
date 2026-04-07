@@ -170,11 +170,11 @@ def run_rsync_sync(source, dest, task_name, dry_run=False, excludes=None):
 
 def sync_2fa(dry_run=False):
     print("\n" + "="*70); print("--- Task: Encrypting 2FA Files ---")
-    return run_rsync_sync(SYNC_2FA_SOURCE, SYNC_2FA_DEST, "Sync 2FA", dry_run, excludes=['.stfolder', '.stversions'])
+    return run_rsync_sync(SYNC_2FA_SOURCE, SYNC_2FA_DEST, "Sync 2FA", dry_run, excludes=['.stfolder', '.stversions', '.git'])
 
 def sync_backups(dry_run=False):
     print("\n" + "="*70); print("--- Task: Encrypting General Backups ---")
-    return run_rsync_sync(SYNC_BACKUPS_SOURCE, SYNC_BACKUPS_DEST, "Sync Backups", dry_run, excludes=['_pvt', '.stfolder', '.stversions'])
+    return run_rsync_sync(SYNC_BACKUPS_SOURCE, SYNC_BACKUPS_DEST, "Sync Backups", dry_run, excludes=['_pvt', '.stfolder', '.stversions', '.git'])
 
 # --- Reporting ---
 
