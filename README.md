@@ -1,4 +1,4 @@
-# ctrl_s_master
+# ctrl_s_master `linux`
 > *Named after the universal shortcut for saving: CTRL + S.*
 
 A robust, automated orchestration engine for self-hosted disaster recovery. This suite manages the retrieval, encryption, and backup of critical digital assets (Bitwarden, Raindrop, 2FA, Documentation) into a localized, encrypted VeraCrypt container on a headless Linux server.
