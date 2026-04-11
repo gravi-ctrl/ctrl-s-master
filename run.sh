@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # --- CONFIGURATION ---
-PROJECT_DIR="/home/gravi-ctrl/scripts/ctrl_s_master"
+PROJECT_DIR="/home/gravi-ctrl/scripts/ctrl_s_master/linux"
 VC_CONTAINER="$PROJECT_DIR/vaults.hc"
 MOUNT_POINT="/mnt/secure_vaults"
 SECRET_FILE="/root/.vc_secret"
