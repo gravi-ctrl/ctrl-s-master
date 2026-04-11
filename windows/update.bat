@@ -31,7 +31,16 @@ echo.
     echo.
 ) >> "%LOG_FILE%" 2>&1
 
-:: --- 2. Check & Fix Virtual Environment (Portability Fix) ---
+:: --- 2. Detect Python ---
+set "PYTHON_CMD=python"
+echo [INFO] Checking for Python interpreter... >> "%LOG_FILE%" 2>&1
+"%PYTHON_CMD%" --version >> "%LOG_FILE%" 2>&1
+if %errorlevel% neq 0 (
+    echo [FATAL] No usable Python interpreter found. >> "%LOG_FILE%" 2>&1
+    goto:end
+)
+
+:: --- 3. Check & Fix Virtual Environment (Portability Fix) ---
 echo [STEP 1/3] Verifying Virtual Environment Integrity... >> "%LOG_FILE%" 2>&1
 
 set "VENV_PATH=%SCRIPT_DIR%venv"
@@ -56,14 +65,14 @@ if "%NEEDS_REBUILD%"=="1" (
         rmdir /s /q "%VENV_PATH%"
     )
     echo [INFO] Creating fresh virtual environment... >> "%LOG_FILE%" 2>&1
-    python -m venv "%VENV_PATH%"
+    "%PYTHON_CMD%" -m venv "%VENV_PATH%"
     if %errorlevel% neq 0 (
         echo [FATAL] Failed to create venv. Is Python installed globally? >> "%LOG_FILE%" 2>&1
         goto:end
     )
 )
 
-:: --- 3. Activate and Update Packages ---
+:: --- 4. Activate and Update Packages ---
 echo [STEP 2/3] Activating environment and updating Python packages... >> "%LOG_FILE%" 2>&1
 (
     call "%ACTIVATE_SCRIPT%" && (
@@ -82,7 +91,7 @@ if %errorlevel% neq 0 (
 )
 echo. >> "%LOG_FILE%" 2>&1
 
-:: --- 4. Update Bitwarden CLI ---
+:: --- 5. Update Bitwarden CLI ---
 set "BW_CLI_DIR=%SCRIPT_DIR%src\_tools\bw\"
 set "BW_DOWNLOAD_URL=https://vault.bitwarden.com/download/?app=cli&platform=windows"
 set "BW_ZIP_PATH=%BW_CLI_DIR%bw.zip"
