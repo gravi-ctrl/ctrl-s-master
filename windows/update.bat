@@ -63,11 +63,24 @@ if "%NEEDS_REBUILD%"=="1" (
     if exist "%VENV_PATH%" (
         echo [INFO] Removing broken environment... >> "%LOG_FILE%" 2>&1
         rmdir /s /q "%VENV_PATH%"
+        if exist "%VENV_PATH%" (
+            echo [ERROR] Failed to remove old venv directory! >> "%LOG_FILE%" 2>&1
+            goto:end
+        )
     )
     echo [INFO] Creating fresh virtual environment... >> "%LOG_FILE%" 2>&1
-    "%PYTHON_CMD%" -m venv "%VENV_PATH%"
-    if %errorlevel% neq 0 (
-        echo [FATAL] Failed to create venv. Is Python installed globally? >> "%LOG_FILE%" 2>&1
+    echo [DEBUG] Running: "%PYTHON_CMD%" -m venv "%VENV_PATH%" >> "%LOG_FILE%" 2>&1
+    
+    REM Capture both stdout and stderr
+    "%PYTHON_CMD%" -m venv "%VENV_PATH%" >> "%LOG_FILE%" 2>&1
+    set "VENV_ERROR=%errorlevel%"
+    
+    if %VENV_ERROR% neq 0 (
+        echo [FATAL] Failed to create venv. Error code: %VENV_ERROR% >> "%LOG_FILE%" 2>&1
+        echo [DEBUG] Attempting to show Python venv error: >> "%LOG_FILE%" 2>&1
+        "%PYTHON_CMD%" -m venv --help >> "%LOG_FILE%" 2>&1
+        echo [DEBUG] Checking if ensurepip is available: >> "%LOG_FILE%" 2>&1
+        "%PYTHON_CMD%" -m ensurepip --version >> "%LOG_FILE%" 2>&1
         goto:end
     )
 )
