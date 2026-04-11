@@ -1,0 +1,14 @@
+# Core Dependencies
+python-dotenv
+requests
+
+# Bitwarden Exporter & KDBX Conversion
+bitwarden-sdk
+cryptography
+argon2-cffi
+pykeepass
+python-dateutil
+lxml
+
+# Development & Testing
+pytest

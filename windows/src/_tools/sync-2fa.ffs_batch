@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FreeFileSync XmlType="BATCH" XmlFormat="23">
+    <Notes/>
+    <Compare>
+        <Variant>TimeAndSize</Variant>
+        <Symlinks>Exclude</Symlinks>
+        <IgnoreTimeShift/>
+    </Compare>
+    <Synchronize>
+        <Differences LeftOnly="right" LeftNewer="right" RightNewer="right" RightOnly="right"/>
+        <DeletionPolicy>Permanent</DeletionPolicy>
+        <VersioningFolder Style="Replace"/>
+    </Synchronize>
+    <Filter>
+        <Include>
+            <Item>*</Item>
+        </Include>
+        <Exclude>
+            <Item>\System Volume Information\</Item>
+            <Item>\RECYCLE?\</Item>
+            <Item>*\thumbs.db</Item>
+            <Item>*\desktop.ini</Item>
+            <Item>\aegis-decrypt.py</Item>
+            <Item>*\.git</Item>
+            <Item>*\.stfolder\</Item>
+            <Item>*\.stversions\</Item>
+        </Exclude>
+        <SizeMin Unit="None">0</SizeMin>
+        <SizeMax Unit="None">0</SizeMax>
+        <TimeSpan Type="None">0</TimeSpan>
+    </Filter>
+    <FolderPairs>
+        <Pair>
+            <Left>D:\x\@Sync\My_Shit\aegis</Left>
+            <Right>%AUTOMATION_ROOT%/2fa</Right>
+        </Pair>
+    </FolderPairs>
+    <Errors Ignore="true" Retry="3" Delay="5"/>
+    <PostSyncCommand Condition="Completion"/>
+    <LogFolder>%AUTOMATION_ROOT%/_logs/</LogFolder>
+    <EmailNotification Condition="Always"/>
+    <GridViewType>Action</GridViewType>
+    <Batch>
+        <ProgressDialog Minimized="true" AutoClose="true"/>
+        <ErrorDialog>Show</ErrorDialog>
+        <PostSyncAction>None</PostSyncAction>
+    </Batch>
+</FreeFileSync>
