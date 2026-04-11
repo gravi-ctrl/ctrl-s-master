@@ -31,7 +31,7 @@ echo.
     echo.
 ) >> "%LOG_FILE%" 2>&1
 
-:: --- 2. Detect Python ---
+:: --- 1.5. Detect Python (same as setup.bat) ---
 set "PYTHON_CMD=python"
 echo [INFO] Checking for Python interpreter... >> "%LOG_FILE%" 2>&1
 "%PYTHON_CMD%" --version >> "%LOG_FILE%" 2>&1
@@ -40,11 +40,12 @@ if %errorlevel% neq 0 (
     goto:end
 )
 
-:: --- 3. Check & Fix Virtual Environment (Portability Fix) ---
+:: --- 2. Check & Fix Virtual Environment (Portability Fix) ---
 echo [STEP 1/3] Verifying Virtual Environment Integrity... >> "%LOG_FILE%" 2>&1
 
 set "VENV_PATH=%SCRIPT_DIR%venv"
 set "ACTIVATE_SCRIPT=%VENV_PATH%\Scripts\activate.bat"
+set "VENV_PYTHON=%VENV_PATH%\Scripts\python.exe"
 set "NEEDS_REBUILD=0"
 
 :: Check if venv exists and if it matches current location
@@ -62,40 +63,31 @@ if exist "%ACTIVATE_SCRIPT%" (
 if "%NEEDS_REBUILD%"=="1" (
     if exist "%VENV_PATH%" (
         echo [INFO] Removing broken environment... >> "%LOG_FILE%" 2>&1
-        rmdir /s /q "%VENV_PATH%"
-        if exist "%VENV_PATH%" (
-            echo [ERROR] Failed to remove old venv directory! >> "%LOG_FILE%" 2>&1
-            goto:end
-        )
+        rmdir /s /q "%VENV_PATH%" >> "%LOG_FILE%" 2>&1
+        timeout /t 2 /nobreak >nul
     )
     echo [INFO] Creating fresh virtual environment... >> "%LOG_FILE%" 2>&1
-    echo [DEBUG] Running: "%PYTHON_CMD%" -m venv "%VENV_PATH%" >> "%LOG_FILE%" 2>&1
-    
-    REM Capture both stdout and stderr
-    "%PYTHON_CMD%" -m venv "%VENV_PATH%" >> "%LOG_FILE%" 2>&1
-    set "VENV_ERROR=%errorlevel%"
-    
-    if %VENV_ERROR% neq 0 (
-        echo [FATAL] Failed to create venv. Error code: %VENV_ERROR% >> "%LOG_FILE%" 2>&1
-        echo [DEBUG] Attempting to show Python venv error: >> "%LOG_FILE%" 2>&1
-        "%PYTHON_CMD%" -m venv --help >> "%LOG_FILE%" 2>&1
-        echo [DEBUG] Checking if ensurepip is available: >> "%LOG_FILE%" 2>&1
-        "%PYTHON_CMD%" -m ensurepip --version >> "%LOG_FILE%" 2>&1
+    ("%PYTHON_CMD%" -m venv "%VENV_PATH%") >> "%LOG_FILE%" 2>&1
+    if %errorlevel% neq 0 (
+        echo [FATAL] Failed to create venv. Check the log for details. >> "%LOG_FILE%" 2>&1
         goto:end
     )
+    if not exist "%VENV_PYTHON%" (
+        echo [FATAL] Venv created but python.exe not found. >> "%LOG_FILE%" 2>&1
+        goto:end
+    )
+    echo [INFO] Virtual environment created successfully. >> "%LOG_FILE%" 2>&1
 )
 
-:: --- 4. Activate and Update Packages ---
+:: --- 3. Activate and Update Packages ---
 echo [STEP 2/3] Activating environment and updating Python packages... >> "%LOG_FILE%" 2>&1
-(
-    call "%ACTIVATE_SCRIPT%" && (
-        echo [INFO] Upgrading pip to latest...
-        python -m pip install --upgrade pip
-        echo.
-        echo [INFO] Upgrading packages from requirements.txt...
-        pip install -r "%SCRIPT_DIR%requirements.txt" --upgrade
-    )
-) >> "%LOG_FILE%" 2>&1
+set "PIP_CMD=%VENV_PYTHON% -m pip"
+
+echo [INFO] Upgrading pip to latest... >> "%LOG_FILE%" 2>&1
+(%PIP_CMD% install --upgrade pip) >> "%LOG_FILE%" 2>&1
+
+echo [INFO] Upgrading packages from requirements.txt... >> "%LOG_FILE%" 2>&1
+(%PIP_CMD% install -r "%SCRIPT_DIR%requirements.txt" --upgrade) >> "%LOG_FILE%" 2>&1
 
 if %errorlevel% neq 0 (
     echo [ERROR] Failed to update Python packages. Check the log. >> "%LOG_FILE%" 2>&1
@@ -104,7 +96,7 @@ if %errorlevel% neq 0 (
 )
 echo. >> "%LOG_FILE%" 2>&1
 
-:: --- 5. Update Bitwarden CLI ---
+:: --- 4. Update Bitwarden CLI ---
 set "BW_CLI_DIR=%SCRIPT_DIR%src\_tools\bw\"
 set "BW_DOWNLOAD_URL=https://vault.bitwarden.com/download/?app=cli&platform=windows"
 set "BW_ZIP_PATH=%BW_CLI_DIR%bw.zip"
