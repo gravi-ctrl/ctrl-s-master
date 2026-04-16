@@ -12,19 +12,6 @@ from dotenv import load_dotenv
 from email.message import EmailMessage
 from datetime import datetime
 
-# =================================================================
-#               MASTER AUTOMATION SCRIPT (ENGINE)
-# =================================================================
-#
-#   Author:         gravi-ctrl
-#   Created:        2025-05-17
-#   Last Modified:  2025-11-06
-#
-#   Description:    The core engine for the personal data and
-#                   vault automation suite.
-#
-# =================================================================
-
 ROOT_DIR = Path(__file__).resolve().parents[1]
 
 # Load environment variables from the .env file in the project root
