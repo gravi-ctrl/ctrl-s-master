@@ -1,0 +1,5 @@
+{
+    "source": "${/data/assets/syncthing/Backup}",
+    "dest": "${AUTOMATION_ROOT}/backups",
+    "excludes":["_pvt", ".stfolder", ".stversions", ".git"]
+}

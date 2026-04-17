@@ -1,9 +1,0 @@
-python-dotenv
-bitwarden-sdk
-pykeepass
-cryptography
-lxml
-requests
-pytest
-argon2-cffi
-dateutils

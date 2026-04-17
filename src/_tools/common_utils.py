@@ -1,9 +1,10 @@
+#!/usr/bin/env python3
 import os
 from pathlib import Path
 
 def rotate_backups(directory: Path, glob_pattern: str, max_to_keep: int):
     """
-    A generic function to find, sort by modification time, and delete old backups.
+    Finds, sorts by modification time, and deletes old backups.
 
     Args:
         directory (Path): The directory to clean up.
@@ -14,15 +15,13 @@ def rotate_backups(directory: Path, glob_pattern: str, max_to_keep: int):
         print("    Cleanup check: Rotation is disabled (max_to_keep <= 0).")
         return
     try:
-        # Get all files matching the pattern and sort them by modification time, oldest first.
         existing_files = sorted(
             [f for f in directory.glob(glob_pattern) if f.is_file()],
             key=os.path.getmtime
         )
-        
+
         if len(existing_files) > max_to_keep:
             print(f"    Cleaning up old backups. Found {len(existing_files)}, keeping the newest {max_to_keep}.")
-            # The oldest files are at the beginning of the list
             files_to_delete = existing_files[:-max_to_keep]
             for file in files_to_delete:
                 try:

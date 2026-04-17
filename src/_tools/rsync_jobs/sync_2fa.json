@@ -1,0 +1,5 @@
+{
+    "source": "${/data/assets/syncthing/My_Shit/aegis}",
+    "dest": "${AUTOMATION_ROOT}/2fa",
+    "excludes": [".stfolder", ".stversions", ".git"]
+}
