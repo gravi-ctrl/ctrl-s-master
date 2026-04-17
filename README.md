@@ -343,6 +343,28 @@ sudo veracrypt --text --dismount ./vaults.hc
 
 ---
 
+## ➕ Adding New Sync Folders
+
+To add a new encrypted sync destination (e.g., `another_bak`), follow these three steps:
+
+### 1. Update the Container
+Mount `vaults.hc` manually and create the new folder inside:
+- `Z:\another_bak\` (Windows) or `/mnt/secure_vaults/another_bak/` (Linux)
+
+### 2. Update the Supervisor Scripts
+Add the folder name to the `SECURE_FOLDERS` list at the top of your supervisor scripts. The scripts will handle the creation and removal of the links automatically.
+
+- **Windows (`run.bat`):**  
+  `set "SECURE_FOLDERS=vaults 2fa backups another_bak"`
+
+- **Linux (`run.sh`):**  
+  `SECURE_FOLDERS=("vaults" "2fa" "backups" "another_bak")`
+
+### 3. Create the Sync Job
+Drop your `.ffs_batch` (Windows) or `.json` (Linux) file into the respective `_tools` folder. Ensure the destination path in your job points to the newly linked folder within the project directory.
+
+---
+
 ## 📂 Project Structure
 
 ```
