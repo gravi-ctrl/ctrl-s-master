@@ -375,4 +375,17 @@ ctrl_s_master/
 ├── 📊 status.json                        # (Gitignored) Machine-readable run history.
 ├── 📄 status_dashboard.md                # (Gitignored) Human-readable run dashboard.
 │
-│   — Created at runtime
+│   — Created at runtime, removed after —
+├── 🔗 vaults/                            # Junction (Win) / Symlink (Lin) into container.
+├── 🔗 2fa/                               # Junction (Win) / Symlink (Lin) into container.
+├── 🔗 backups/                           # Junction (Win) / Symlink (Lin) into container.
+├── 📄 .env                               # Injected from vault, deleted post-run.
+│
+│   — External —
+└── 🔑 ~/.vc_secret                       # Auto-unlocker keyfile (user home on both OSes).
+```
+	
+---
+	
+### Author
+This project was created and is maintained by myself - [gravi-ctrl](https://github.com/gravi-ctrl).
