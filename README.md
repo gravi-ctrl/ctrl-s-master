@@ -82,8 +82,8 @@ cipher /e "%USERPROFILE%\.vc_secret"
 
 #### 🐧 Linux
 ```bash
-# Replace 'YOUR_REAL_PASSWORD' with the actual vaults.hc password
-sudo sh -c 'echo "YOUR_REAL_PASSWORD" > /root/.vc_secret'
+# Paste your vaults.hc password inside the .vc_secret
+sudo nano /root/.vc_secret
 sudo chmod 600 /root/.vc_secret
 ```
 The file is owned and readable only by root, which is the same user that runs the supervisor.
