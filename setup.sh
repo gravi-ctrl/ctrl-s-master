@@ -12,7 +12,7 @@ echo "========================================"
 echo "[1/5] Installing System Prerequisites..."
 sudo apt-get update
 # software-properties-common is needed for add-apt-repository
-sudo apt-get install -y software-properties-common python3-venv python3-pip unzip rsync curl dos2unix
+sudo apt-get install -y software-properties-common coreutils python3-venv python3-pip unzip rsync curl dos2unix
 
 # 2. Install VeraCrypt
 echo "[2/5] Checking VeraCrypt..."
