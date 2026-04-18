@@ -34,12 +34,12 @@ cleanup() {
     
     # 1. Remove folder pointers
     for folder in "${SECURE_FOLDERS[@]}"; do
-        rm "$PROJECT_DIR/$folder" 2>/dev/null
+        rm -rf "$PROJECT_DIR/$folder" 2>/dev/null
     done
     
     # 2. Securely shred credentials
-    rm "$PROJECT_DIR/.env" 2>/dev/null
-    shred -u "$PROJECT_DIR/.temp_env_handoff" 2>/dev/null || rm "$PROJECT_DIR/.temp_env_handoff" 2>/dev/null
+    rm -f "$PROJECT_DIR/.env" 2>/dev/null
+    shred -u "$PROJECT_DIR/.temp_env_handoff" 2>/dev/null || rm -f "$PROJECT_DIR/.temp_env_handoff" 2>/dev/null
     
     # 3. Force dismount container
     sudo veracrypt --text --non-interactive --dismount "$VC_CONTAINER" >> "$LOG_FILE" 2>&1
@@ -61,7 +61,7 @@ sudo veracrypt --text --non-interactive --pim=0 --keyfiles="" --protect-hidden=n
 
 if [ $? -ne 0 ]; then
     echo "FATAL: Failed to mount VeraCrypt container." >> "$LOG_FILE"
-    exit 1  # The trap will automatically catch this and clean up!
+    exit 1  
 fi
 
 # --- 3. LINK FOLDERS ---
@@ -85,7 +85,7 @@ fi
 PYTHON_EXIT_CODE=$?
 
 # Preserve secrets for email
-if[ -f "$PROJECT_DIR/.env" ]; then
+if [ -f "$PROJECT_DIR/.env" ]; then
     cp "$PROJECT_DIR/.env" "$PROJECT_DIR/.temp_env_handoff"
     chmod 600 "$PROJECT_DIR/.temp_env_handoff"
 fi
@@ -102,7 +102,7 @@ sudo veracrypt --text --non-interactive --dismount "$VC_CONTAINER" >> "$LOG_FILE
 FINAL_EXIT_CODE=$PYTHON_EXIT_CODE
 
 if [ "$MODE" == "NORMAL" ]; then
-    if[ $PYTHON_EXIT_CODE -eq 0 ]; then
+    if [ $PYTHON_EXIT_CODE -eq 0 ]; then
         echo "Starting Container Backup..." >> "$LOG_FILE"
         if [ -d "$BACKUP_DEST" ]; then
             find "$BACKUP_DEST" -maxdepth 1 -name "ctrl_s_master_*.hc" -type f -not -name "$BACKUP_FILENAME" -delete
@@ -113,11 +113,11 @@ if [ "$MODE" == "NORMAL" ]; then
 fi
 
 # --- 7. SEND REPORT ---
-if[ -f "$PROJECT_DIR/.temp_env_handoff" ]; then
+if [ -f "$PROJECT_DIR/.temp_env_handoff" ]; then
     ln -sf "$PROJECT_DIR/.temp_env_handoff" "$PROJECT_DIR/.env"
 fi
 
-if[ "$MODE" == "NORMAL" ]; then
+if [ "$MODE" == "NORMAL" ]; then
     if [ $FINAL_EXIT_CODE -eq 0 ]; then
         python3 "$PROJECT_DIR/src/master_automation.py" send-report success >> "$LOG_FILE" 2>&1
     else
@@ -126,6 +126,6 @@ if[ "$MODE" == "NORMAL" ]; then
 fi
 
 # --- 8. FINAL CLEANUP ---
-# Handled safely by the 'trap cleanup' function automatically!
+# The logic here is now handled by the trap function on script exit
 echo "--- Finished at $(date) ---" >> "$LOG_FILE"
 exit $FINAL_EXIT_CODE
