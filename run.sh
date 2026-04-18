@@ -134,7 +134,9 @@ fi
 
 # --- 8. FINAL CLEANUP ---
 rm "$PROJECT_DIR/.env" 2>/dev/null
-rm "$PROJECT_DIR/.temp_env_handoff" 2>/dev/null
+
+# Securely overwrite and delete the physical temp file
+shred -u "$PROJECT_DIR/.temp_env_handoff" 2>/dev/null || rm "$PROJECT_DIR/.temp_env_handoff" 2>/dev/null
 
 echo "--- Finished at $(date) ---" >> "$LOG_FILE"
 exit $FINAL_EXIT_CODE
