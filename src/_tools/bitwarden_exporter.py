@@ -47,7 +47,7 @@ def determine_output_path(root_path: Path, vault_type: str):
 
     serial_number = 1
     glob_pattern = f"*-{base_filename}_*.json"
-    existing_files = [f.name for f in output_dir.glob(glob_pattern)]
+    existing_files =[f.name for f in output_dir.glob(glob_pattern)]
     if existing_files:
         serials = [int(f.split('-')[0]) for f in existing_files if f.split('-')[0].isdigit()]
         if serials:
@@ -59,12 +59,17 @@ def determine_output_path(root_path: Path, vault_type: str):
 
 def get_config(vault_type: str, root_path: Path):
     prefix = f"BW_{vault_type.upper()}_"
-    required_vars = [
+    
+    client_id_uuid = os.getenv(f"{prefix}CLIENT_ID_UUID")
+    if not client_id_uuid:
+        return None
+
+    required_vars =[
         "BW_CLI_PATH", "BW_API_URL", "BW_IDENTITY_URL", "BW_ACCESS_TOKEN",
-        "BW_STATE_FILE", f"{prefix}CLIENT_ID_UUID", f"{prefix}CLIENT_SECRET_UUID",
+        "BW_STATE_FILE", f"{prefix}CLIENT_SECRET_UUID",
         f"{prefix}MASTER_PASSWORD_UUID", f"BITWARDEN_{vault_type.upper()}_PASSWORD"
     ]
-    missing_vars = [var for var in required_vars if not os.getenv(var)]
+    missing_vars =[var for var in required_vars if not os.getenv(var)]
     if missing_vars:
         print(f"FATAL: The following required variables are not set in your .env file: {', '.join(missing_vars)}")
         sys.exit(1)
@@ -73,15 +78,11 @@ def get_config(vault_type: str, root_path: Path):
     cli_path = os.getenv("BW_CLI_PATH", "bw")
 
     if IS_WINDOWS:
-        # On Windows, BW_CLI_PATH is always a local relative path to a bundled .exe
         config["bw_command"] = root_path / cli_path
         if not config["bw_command"].exists():
             print(f"FATAL: Bitwarden CLI not found at resolved path: {config['bw_command']}")
             sys.exit(1)
     else:
-        # On Linux, BW_CLI_PATH may be 'bw' (on system PATH) or a relative/absolute path.
-        # If it resolves to a .exe (i.e. the shared .env still has the Windows path),
-        # automatically fall back to the system 'bw' binary instead of crashing.
         if Path(cli_path).is_absolute():
             resolved = Path(cli_path)
         elif cli_path == "bw" or "/" not in cli_path:
@@ -93,12 +94,10 @@ def get_config(vault_type: str, root_path: Path):
             import shutil as _shutil
             system_bw = _shutil.which("bw")
             if system_bw:
-                print(f"[INFO] BW_CLI_PATH resolves to a Windows binary ('{resolved.name}'). "
-                      f"Using system 'bw' at {system_bw} instead.")
+                print(f"[INFO] BW_CLI_PATH resolves to a Windows binary ('{resolved.name}'). Using system 'bw' instead.")
                 config["bw_command"] = Path(system_bw)
             else:
-                print("FATAL: BW_CLI_PATH points to a .exe but 'bw' was not found on system PATH. "
-                      "Install the Bitwarden CLI (setup.sh) or set BW_CLI_PATH=bw in your .env.")
+                print("FATAL: BW_CLI_PATH points to a .exe but 'bw' was not found on system PATH.")
                 sys.exit(1)
         else:
             config["bw_command"] = resolved
@@ -112,7 +111,7 @@ def get_config(vault_type: str, root_path: Path):
     except (ValueError, TypeError):
         config["serials_to_keep"] = 0
 
-    config["client_id_uuid"] = os.getenv(f"{prefix}CLIENT_ID_UUID")
+    config["client_id_uuid"] = client_id_uuid
     config["client_secret_uuid"] = os.getenv(f"{prefix}CLIENT_SECRET_UUID")
     config["master_password_uuid"] = os.getenv(f"{prefix}MASTER_PASSWORD_UUID")
     config["export_format"] = os.getenv(f"{prefix}EXPORT_FORMAT", "json")
@@ -149,7 +148,7 @@ def get_secret_by_uuid(client: BitwardenClient, secret_uuid: str, secret_name: s
         if secret and secret.data and secret.data.value:
             print(f"OK: Retrieved secret: '{secret_name}'.")
             return secret.data.value
-        print(f"FATAL: Failed to retrieve value for secret '{secret_name}'. The secret may be empty, archived, or you lack permissions.")
+        print(f"FATAL: Failed to retrieve value for secret '{secret_name}'.")
         sys.exit(1)
     except Exception as e:
         print(f"FATAL: An error occurred while fetching secret '{secret_name}': {e}")
@@ -187,8 +186,7 @@ def bw_unlock(config, master_password):
     try:
         print("[STATUS] Unlocking the Bitwarden vault...")
         os.environ["BW_MASTER_PASSWORD"] = master_password
-        result = subprocess.run(
-            [str(config["bw_command"]), "unlock", "--passwordenv", "BW_MASTER_PASSWORD", "--raw"],
+        result = subprocess.run([str(config["bw_command"]), "unlock", "--passwordenv", "BW_MASTER_PASSWORD", "--raw"],
             check=True, capture_output=True, text=True
         )
         session_key = result.stdout.strip()
@@ -235,6 +233,11 @@ if __name__ == "__main__":
     try:
         project_root_path = load_master_env()
         config = get_config(vault_type, project_root_path)
+        
+        if config is None:
+            print(f"SKIP: {vault_type.upper()} vault is not configured. Skipping export.")
+            sys.exit(0)
+
         print(f"OK: Using Bitwarden CLI at: {config['bw_command']}")
         bw_logout(config)
         secrets_client = authenticate_secrets_manager(config)

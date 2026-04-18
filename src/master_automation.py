@@ -38,8 +38,6 @@ STATUS_DASHBOARD_FILE = Path(os.getenv("STATUS_DASHBOARD_FILE", str(ROOT_DIR / '
 FAILURE_LOG_FILE      = LOGS_DIR / "failure_details.log"
 
 # ── Config ────────────────────────────────────────────────────────────────────
-BITWARDEN_PERSONAL_PASSWORD = os.getenv("BITWARDEN_PERSONAL_PASSWORD")
-BITWARDEN_WORK_PASSWORD     = os.getenv("BITWARDEN_WORK_PASSWORD")
 KDBX_PERSONAL_PASSWORD      = os.getenv("KDBX_PERSONAL_PASSWORD")
 KDBX_WORK_PASSWORD          = os.getenv("KDBX_WORK_PASSWORD")
 
@@ -91,10 +89,10 @@ def _check_env_vars(required_vars: list[str]) -> bool:
 
 def run_command(command_list, is_python_script=False, working_dir=None):
     if is_python_script:
-        full_cmd_list = [str(_VENV_PYTHON)] +[str(x) for x in command_list]
+        full_cmd_list =[str(_VENV_PYTHON)] + [str(x) for x in command_list]
         print(f"--- Executing Python Script: {Path(command_list[0]).name} ---")
     else:
-        full_cmd_list =[str(x) for x in command_list]
+        full_cmd_list = [str(x) for x in command_list]
         print(f"--- Executing: {' '.join(full_cmd_list)} ---")
 
     env = os.environ.copy()
@@ -140,17 +138,20 @@ def run_command(command_list, is_python_script=False, working_dir=None):
 
 def export_personal(dry_run=False):
     print("\n" + "="*70); print("--- Task: Exporting Personal Vault ---")
-    if not _check_env_vars(["BITWARDEN_PERSONAL_PASSWORD"]): return False, "Missing env vars"
+    if not os.getenv("BW_PERSONAL_CLIENT_ID_UUID"):
+        print("SKIP: Personal Vault not configured in .env")
+        return True, ""
     return run_command([BW_EXPORT_SCRIPT_PATH, 'personal'], is_python_script=True)
 
 def export_work(dry_run=False):
     print("\n" + "="*70); print("--- Task: Exporting Work Vault ---")
-    if not _check_env_vars(["BITWARDEN_WORK_PASSWORD"]): return False, "Missing env vars"
+    if not os.getenv("BW_WORK_CLIENT_ID_UUID"):
+        print("SKIP: Work Vault not configured in .env")
+        return True, ""
     return run_command([BW_EXPORT_SCRIPT_PATH, 'work'], is_python_script=True)
 
 def convert_json_to_kdbx(dry_run=False):
     print("\n" + "="*70); print("--- Task: Converting New JSON to KDBX ---")
-    if not _check_env_vars(["KDBX_PERSONAL_PASSWORD", "KDBX_WORK_PASSWORD"]): return False, "Missing env vars"
     converter_script = TOOLS_DIR / 'convert-to-kdbx.py'
 
     vaults_dir_override = os.getenv("DRY_RUN_VAULTS_DIR")
@@ -158,13 +159,26 @@ def convert_json_to_kdbx(dry_run=False):
     if not json_dir.exists(): return True, ""
 
     json_files = list(json_dir.glob('*.json'))
+    if not json_files: return True, ""
+
     all_success = True; final_output = ""
 
     for json_file in json_files:
         if 'personal' in json_file.name.lower():
-            os.environ["KDBX_PASSWORD_OVERRIDE"] = KDBX_PERSONAL_PASSWORD
+            pwd = KDBX_PERSONAL_PASSWORD
+            if not pwd:
+                all_success = False
+                final_output += f"\n[File: {json_file.name}]\nMissing KDBX_PERSONAL_PASSWORD in .env\n"
+                continue
+            os.environ["KDBX_PASSWORD_OVERRIDE"] = pwd
+            
         elif 'work' in json_file.name.lower():
-            os.environ["KDBX_PASSWORD_OVERRIDE"] = KDBX_WORK_PASSWORD
+            pwd = KDBX_WORK_PASSWORD
+            if not pwd:
+                all_success = False
+                final_output += f"\n[File: {json_file.name}]\nMissing KDBX_WORK_PASSWORD in .env\n"
+                continue
+            os.environ["KDBX_PASSWORD_OVERRIDE"] = pwd
         else:
             continue
 
@@ -178,6 +192,9 @@ def convert_json_to_kdbx(dry_run=False):
 
 def raindrop_backup(dry_run=False):
     print("\n" + "="*70); print("--- Task: Backing up Raindrop.io ---")
+    if not os.getenv("RAINDROP_BACKUP_DESTINATION"):
+        print("SKIP: Raindrop backup not configured (missing RAINDROP_BACKUP_DESTINATION).")
+        return True, ""
     return run_command([RAINDROP_BACKUP_SCRIPT_PATH], is_python_script=True)
 
 
@@ -193,7 +210,7 @@ def run_rsync_sync(source, dest, task_name, dry_run=False, excludes=None):
     print(f"Syncing FROM: {source}")
     print(f"Syncing TO:   {dest}")
 
-    cmd =["rsync", "-rltDv", "--delete"]
+    cmd = ["rsync", "-rltDv", "--delete"]
     if dry_run: cmd.append("--dry-run")
     if excludes:
         for item in excludes:
@@ -296,7 +313,6 @@ def _discover_ffs_tasks() -> dict:
     for batch_path in batch_files:
         task_key = f"ffs-{batch_path.stem}"
         tasks[task_key] = _make_ffs_task(batch_path)
-        # Using standard ASCII arrow (->) to prevent Windows cp1252 Unicode crash
         print(f"[INFO] Registered FFS sync job: {task_key} -> {batch_path.name}")
 
     return tasks
@@ -603,7 +619,6 @@ def main():
                 failed_task    = task_func.__name__
                 failure_output = output
                 try:
-                    # Append 'a' used here to capture multiple failures
                     with open(FAILURE_LOG_FILE, 'a', encoding='utf-8') as f:
                         f.write(f"Task: {failed_task}\n{failure_output}\n{'-'*40}\n")
                 except Exception as e:

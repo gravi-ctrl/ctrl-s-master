@@ -32,10 +32,15 @@ def load_master_env():
         sys.exit(1)
 
 def get_config():
-    required_vars = ["RAINDROP_BACKUP_DESTINATION", "RAINDROP_PERSONAL_API_TOKEN", "RAINDROP_WORK_API_TOKEN"]
-    missing_vars = [var for var in required_vars if not os.getenv(var)]
-    if missing_vars:
-        print(f"FATAL: The following required variables are not set: {', '.join(missing_vars)}")
+    if not os.getenv("RAINDROP_BACKUP_DESTINATION"):
+        print("FATAL: RAINDROP_BACKUP_DESTINATION is not set in .env")
+        sys.exit(1)
+
+    p_token = os.getenv('RAINDROP_PERSONAL_API_TOKEN')
+    w_token = os.getenv('RAINDROP_WORK_API_TOKEN')
+
+    if not p_token and not w_token:
+        print("FATAL: Neither Personal nor Work Raindrop tokens are set. Nothing to back up.")
         sys.exit(1)
 
     backup_dest_override = os.getenv("DRY_RUN_BACKUP_DEST")
@@ -49,14 +54,18 @@ def get_config():
     config = {
         "backup_dest_dir": backup_dest,
         "backups_to_keep": int(os.getenv("BACKUPS_TO_KEEP", 7)),
-        "accounts": [
-            {'name': 'Personal', 'token': os.getenv('RAINDROP_PERSONAL_API_TOKEN'), 'folder': 'personal'},
-            {'name': 'Work',     'token': os.getenv('RAINDROP_WORK_API_TOKEN'),      'folder': 'work'}
-        ]
+        "accounts":[]
     }
+    
+    if p_token:
+        config["accounts"].append({'name': 'Personal', 'token': p_token, 'folder': 'personal'})
+    if w_token:
+        config["accounts"].append({'name': 'Work', 'token': w_token, 'folder': 'work'})
+
     if not config["backup_dest_dir"].is_dir():
         print(f"FATAL: Backup path could not be created or is not a directory: {config['backup_dest_dir']}")
         sys.exit(1)
+        
     return config
 
 def fetch_collections_map(api_token):
@@ -67,7 +76,7 @@ def fetch_collections_map(api_token):
     try:
         response = requests.get(base_url, headers=headers)
         response.raise_for_status()
-        for c in response.json().get('items', []):
+        for c in response.json().get('items',[]):
             collection_map[c['_id']] = c['title']
         response = requests.get(base_url + '/childrens', headers=headers)
         response.raise_for_status()
@@ -82,7 +91,7 @@ def fetch_collections_map(api_token):
 def fetch_all_bookmarks(api_token):
     headers = {'Authorization': f'Bearer {api_token}'}
     api_url = 'https://api.raindrop.io/rest/v1/raindrops/0'
-    all_bookmarks, page, total_api_count = [], 0, -1
+    all_bookmarks, page, total_api_count =[], 0, -1
     print("Fetching all bookmarks...")
     while True:
         try:
@@ -92,7 +101,7 @@ def fetch_all_bookmarks(api_token):
             if page == 0 and 'count' in data:
                 total_api_count = data['count']
                 print(f"  - API reports a total of {total_api_count} bookmarks.")
-            items = data.get('items', [])
+            items = data.get('items',[])
             if not items:
                 break
             all_bookmarks.extend(items)
@@ -122,7 +131,7 @@ def save_as_csv(bookmarks, filepath: Path, collection_map):
                 writer.writerow([
                     item.get('title', ''), item.get('link', ''),
                     datetime.fromisoformat(item['created'].replace('Z', '+00:00')).strftime('%d-%m-%Y'),
-                    ', '.join(item.get('tags', [])),
+                    ', '.join(item.get('tags',[])),
                     collection_map.get(item.get('collectionId', -1), 'Unsorted'),
                     item.get('excerpt', ''), item.get('note', '')
                 ])
@@ -140,7 +149,7 @@ def save_as_html(bookmarks, filepath: Path, account_name, collection_map):
             f.write(f"<p class='meta'>Generated on: {datetime.now().strftime('%d-%m-%Y_%H-%M-%S')}</p>\n<ul>\n")
             for item in bookmarks:
                 tags_html = ''.join(
-                    f"<span class='tag'>{html.escape(tag)}</span>" for tag in item.get('tags', [])
+                    f"<span class='tag'>{html.escape(tag)}</span>" for tag in item.get('tags',[])
                 )
                 f.write(
                     f'<li><a href="{html.escape(item.get("link", "#"))}" target="_blank" rel="noopener noreferrer">'
@@ -171,9 +180,6 @@ def process_account_backup(account_config, config):
     output_folder = account_config['folder']
 
     print(f"\n{'='*40}\nProcessing Account: {account_name}\n{'='*40}")
-    if not api_token:
-        print(f"SKIP: Skipping '{account_name}': API Token is not set.")
-        return True
 
     collection_map = fetch_collections_map(api_token)
     if collection_map is None:
