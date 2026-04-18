@@ -128,10 +128,12 @@ if !FINAL_EXIT_CODE! equ 0 (
 )
 
 :: --- 8. FINAL CLEANUP ---
-if exist "%SCRIPT_DIR%.env" echo [SECURE_WIPE_OVERWRITTEN] > "%SCRIPT_DIR%.env"
-del /q "%SCRIPT_DIR%.env" 2>nul
+:: Overwrite the data with a dummy string
+if exist "%SCRIPT_DIR%.env" echo [SECURE_WIPE] > "%SCRIPT_DIR%.env"
+if exist "%SCRIPT_DIR%.temp_env_handoff" echo [SECURE_WIPE] > "%SCRIPT_DIR%.temp_env_handoff"
 
-if exist "%SCRIPT_DIR%.temp_env_handoff" echo[SECURE_WIPE_OVERWRITTEN] > "%SCRIPT_DIR%.temp_env_handoff"
+:: Now delete the overwritten files
+del /q "%SCRIPT_DIR%.env" 2>nul
 del /q "%SCRIPT_DIR%.temp_env_handoff" 2>nul
 
 echo Automation finished. Final Code: !FINAL_EXIT_CODE!
