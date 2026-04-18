@@ -88,6 +88,9 @@ echo Unmounting container... >> "%LOG_FILE%"
 for %%F in (%SECURE_FOLDERS%) do (
     rmdir /q "%SCRIPT_DIR%%%F" 2>nul
 )
+
+:: Secure wipe: overwrite with dummy text before deleting
+if exist "%SCRIPT_DIR%.env" echo[SECURE_WIPE_OVERWRITTEN] > "%SCRIPT_DIR%.env"
 del /q "%SCRIPT_DIR%.env" 2>nul
 
 "%VERACRYPT_EXE%" /d %MOUNT_DRIVE% /q /s >> "%LOG_FILE%" 2>&1
@@ -125,7 +128,10 @@ if !FINAL_EXIT_CODE! equ 0 (
 )
 
 :: --- 8. FINAL CLEANUP ---
+if exist "%SCRIPT_DIR%.env" echo [SECURE_WIPE_OVERWRITTEN] > "%SCRIPT_DIR%.env"
 del /q "%SCRIPT_DIR%.env" 2>nul
+
+if exist "%SCRIPT_DIR%.temp_env_handoff" echo[SECURE_WIPE_OVERWRITTEN] > "%SCRIPT_DIR%.temp_env_handoff"
 del /q "%SCRIPT_DIR%.temp_env_handoff" 2>nul
 
 echo Automation finished. Final Code: !FINAL_EXIT_CODE!
