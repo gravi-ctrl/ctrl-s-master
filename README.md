@@ -21,6 +21,7 @@ This system uses a **Supervisor & Engine** model designed to keep your data secu
 | Directory Links | NTFS Junctions (`mklink /J`) | Symlinks (`ln -sfn`) |
 | File Sync | FreeFileSync (`.ffs_batch` files) | rsync (`.json` files) |
 | Notifications | Email (SMTP) | Telegram |
+| Fail-Safe | Pre-run cleanup & GOTO traps | Native `trap` signals |
 
 > Both channels can be active simultaneously if both are configured in `.env`.
 
@@ -40,7 +41,7 @@ This system uses a **Supervisor & Engine** model designed to keep your data secu
 
 #### 🐧 Linux (Ubuntu/Debian)
 - Root/sudo access is required for mounting.
-- All system dependencies (VeraCrypt, Bitwarden CLI, Python, rsync) are installed automatically by `setup.sh`.
+- All system dependencies (`veracrypt`, `bitwarden CLI`, `python-venv`, `rsync`) are installed automatically by `setup.sh`.
 
 ---
 
@@ -151,7 +152,7 @@ File syncing is fully dynamic and data-driven. **No code changes are required to
 #### 🪟 Windows (FreeFileSync)
 Drop any `.ffs_batch` file into `src/_tools/ffs_jobs/`. The engine will automatically discover and run it. Ensure `FFS_PATH` is correctly set in your `.env` file so the engine knows where the FreeFileSync executable is located.
 
-P.S: the variable to the project directory in the FreeFileSync batch file should look like this `%AUTOMATION_ROOT%`
+*Note: Use %AUTOMATION_ROOT% in your FreeFileSync batch file paths to refer dynamically to the project directory.*
 
 #### 🐧 Linux (rsync)
 Drop a `.json` file into `src/_tools/rsync_jobs/`. The engine will automatically parse the file and execute the `rsync` command. 
@@ -164,7 +165,8 @@ Example `sync_backups.json`:
     "excludes":["_pvt", ".stfolder", ".stversions", ".git"]
 }
 ```
-*(Note: `%AUTOMATION_ROOT%` and `${AUTOMATION_ROOT}` dynamically resolves to the project directory).*
+
+*Note: Use ${AUTOMATION_ROOT} in your JSON configuration paths to refer dynamically to the project directory.*
 
 ---
 
@@ -250,6 +252,16 @@ TELEGRAM_CHAT_ID=987654321
 | `KDBX_*_PASSWORD` | Password you'll use to open the final `.kdbx` file in KeePassXC. |
 | `FFS_PATH` | **Windows only.** Path to `FreeFileSync.exe`. Can be relative to project root or absolute. |
 | `BW_CLI_PATH` | `src/_tools/bw/bw.exe` on Windows. Set to `bw` on Linux if installed globally. |
+
+---
+
+## 🔐 Security & Cleanup
+
+To prevent API tokens and secret metadata from leaking to your physical disk via unallocated space, the Supervisor scripts perform a **Secure Wipe** on every exit:
+
+*   **Linux:** Uses `shred -u` to overwrite the temporary `.env` handoff file 3 times with random data before deletion.
+*   **Windows:** Overwrites the temporary `.env` file with dummy data before calling `del`.
+*   **Links:** Junctions and Symlinks are removed instantly on exit, leaving no path for a threat actor to reach the encrypted data.
 
 ---
 
