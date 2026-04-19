@@ -285,6 +285,8 @@ For scheduling, add to the root crontab (`sudo crontab -e`). Example for bi-week
 0 4 8-14,22-28 * *[ "$(date +\%u)" = 5 ] && /path/to/ctrl_s_master/run.sh
 ```
 
+*Note: The status dashboard and notification reports are "Config-Aware." If a vault (Work or Personal) is not configured in your .env, the task will be automatically skipped and hidden from the report to keep your dashboard clean.*
+
 ---
 
 ### Dry Run
@@ -293,13 +295,21 @@ Simulates a full run in a temporary directory without touching the real containe
 
 #### 🪟 Windows
 ```cmd
-.\venv\Scripts\activate
+:: Run everything
 python src\master_automation.py run-tasks run-all --dry-run
+
+:: Run a specific vault only (e.g., Personal Bitwarden)
+python src\master_automation.py run-tasks export-personal --dry-run
 ```
 
 #### 🐧 Linux
 ```bash
+# Run everything
 sudo ./run.sh dry
+
+# Run a specific vault only (e.g., Work Raindrop)
+source venv/bin/activate
+python3 src/master_automation.py run-tasks raindrop-work --dry-run
 ```
 
 ---
