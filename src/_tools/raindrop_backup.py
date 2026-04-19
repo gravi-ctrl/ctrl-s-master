@@ -31,17 +31,16 @@ def load_master_env():
         print(f"FATAL: Master .env file not found at expected path: {env_path}")
         sys.exit(1)
 
-def get_config():
+def get_config(account_type):
     if not os.getenv("RAINDROP_BACKUP_DESTINATION"):
         print("FATAL: RAINDROP_BACKUP_DESTINATION is not set in .env")
         sys.exit(1)
 
-    p_token = os.getenv('RAINDROP_PERSONAL_API_TOKEN')
-    w_token = os.getenv('RAINDROP_WORK_API_TOKEN')
+    token_var = f"RAINDROP_{account_type.upper()}_API_TOKEN"
+    token = os.getenv(token_var)
 
-    if not p_token and not w_token:
-        print("FATAL: Neither Personal nor Work Raindrop tokens are set. Nothing to back up.")
-        sys.exit(1)
+    if not token:
+        return None # Handled gracefully in main()
 
     backup_dest_override = os.getenv("DRY_RUN_BACKUP_DEST")
     if backup_dest_override:
@@ -54,13 +53,8 @@ def get_config():
     config = {
         "backup_dest_dir": backup_dest,
         "backups_to_keep": int(os.getenv("BACKUPS_TO_KEEP", 7)),
-        "accounts":[]
+        "account": {'name': account_type.capitalize(), 'token': token, 'folder': account_type.lower()}
     }
-    
-    if p_token:
-        config["accounts"].append({'name': 'Personal', 'token': p_token, 'folder': 'personal'})
-    if w_token:
-        config["accounts"].append({'name': 'Work', 'token': w_token, 'folder': 'work'})
 
     if not config["backup_dest_dir"].is_dir():
         print(f"FATAL: Backup path could not be created or is not a directory: {config['backup_dest_dir']}")
@@ -179,8 +173,6 @@ def process_account_backup(account_config, config):
     api_token    = account_config['token']
     output_folder = account_config['folder']
 
-    print(f"\n{'='*40}\nProcessing Account: {account_name}\n{'='*40}")
-
     collection_map = fetch_collections_map(api_token)
     if collection_map is None:
         print(f"FAIL: Halting backup for '{account_name}' due to collection fetch error.")
@@ -211,7 +203,7 @@ def process_account_backup(account_config, config):
     csv_file   = output_dir / f"{base_filename}.csv"
     html_file  = output_dir / f"{base_filename}.html"
     zip_file_path = output_dir / f"{output_folder}_{timestamp}.zip"
-    files_to_zip = [json_file, csv_file, html_file]
+    files_to_zip =[json_file, csv_file, html_file]
 
     print(f"\nFetched {len(bookmarks)} bookmarks.\nSaving backups to: {output_dir}\n")
     save_as_json(bookmarks, json_file)
@@ -236,17 +228,24 @@ def process_account_backup(account_config, config):
     return True
 
 def main():
-    print("Starting Raindrop.io multi-account backup process...")
-    load_master_env()
-    config = get_config()
-    failed_accounts = []
-    for account in config["accounts"]:
-        if not process_account_backup(account, config):
-            failed_accounts.append(account['name'])
-    print(f"\n{'*'*40}\nAll backup tasks finished.\n{'*'*40}")
-    if failed_accounts:
-        print(f"\nERROR: The following accounts failed to back up: {', '.join(failed_accounts)}")
+    if len(sys.argv) < 2 or sys.argv[1] not in ['personal', 'work']:
+        print("FATAL: You must provide 'personal' or 'work' as an argument.")
         sys.exit(1)
+
+    account_type = sys.argv[1]
+    print(f"--- Starting Raindrop.io backup for: {account_type.capitalize()} ---")
+    
+    load_master_env()
+    config = get_config(account_type)
+    
+    if not config:
+        print(f"SKIP: Raindrop {account_type.capitalize()} is not configured. Skipping.")
+        sys.exit(0)
+
+    if not process_account_backup(config["account"], config):
+        sys.exit(1)
+        
+    print(f"--- Finished Raindrop.io backup for: {account_type.capitalize()} ---")
 
 if __name__ == '__main__':
     main()

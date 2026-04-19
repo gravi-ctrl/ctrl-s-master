@@ -89,10 +89,10 @@ def _check_env_vars(required_vars: list[str]) -> bool:
 
 def run_command(command_list, is_python_script=False, working_dir=None):
     if is_python_script:
-        full_cmd_list =[str(_VENV_PYTHON)] + [str(x) for x in command_list]
+        full_cmd_list =[str(_VENV_PYTHON)] +[str(x) for x in command_list]
         print(f"--- Executing Python Script: {Path(command_list[0]).name} ---")
     else:
-        full_cmd_list = [str(x) for x in command_list]
+        full_cmd_list =[str(x) for x in command_list]
         print(f"--- Executing: {' '.join(full_cmd_list)} ---")
 
     env = os.environ.copy()
@@ -136,19 +136,45 @@ def run_command(command_list, is_python_script=False, working_dir=None):
 #  Tasks — Bitwarden / Raindrop
 # ─────────────────────────────────────────────────────────────────────────────
 
+def raindrop_personal(dry_run=False):
+    print("\n" + "="*70); print("--- Task: Backing up Raindrop.io (Personal) ---")
+    if not os.getenv("RAINDROP_PERSONAL_API_TOKEN"):
+        print("SKIP: Raindrop Personal not configured in .env")
+        return "SKIPPED", ""
+    if not os.getenv("RAINDROP_BACKUP_DESTINATION"):
+        return "FAILURE", "Missing RAINDROP_BACKUP_DESTINATION in .env"
+    success, out = run_command([RAINDROP_BACKUP_SCRIPT_PATH, 'personal'], is_python_script=True)
+    return "SUCCESS" if success else "FAILURE", out
+
+def raindrop_work(dry_run=False):
+    print("\n" + "="*70); print("--- Task: Backing up Raindrop.io (Work) ---")
+    if not os.getenv("RAINDROP_WORK_API_TOKEN"):
+        print("SKIP: Raindrop Work not configured in .env")
+        return "SKIPPED", ""
+    if not os.getenv("RAINDROP_BACKUP_DESTINATION"):
+        return "FAILURE", "Missing RAINDROP_BACKUP_DESTINATION in .env"
+    success, out = run_command([RAINDROP_BACKUP_SCRIPT_PATH, 'work'], is_python_script=True)
+    return "SUCCESS" if success else "FAILURE", out
+
 def export_personal(dry_run=False):
     print("\n" + "="*70); print("--- Task: Exporting Personal Vault ---")
     if not os.getenv("BW_PERSONAL_CLIENT_ID_UUID"):
         print("SKIP: Personal Vault not configured in .env")
-        return True, ""
-    return run_command([BW_EXPORT_SCRIPT_PATH, 'personal'], is_python_script=True)
+        return "SKIPPED", ""
+    if not _check_env_vars(["BITWARDEN_PERSONAL_PASSWORD"]):
+        return "FAILURE", "Missing BITWARDEN_PERSONAL_PASSWORD"
+    success, out = run_command([BW_EXPORT_SCRIPT_PATH, 'personal'], is_python_script=True)
+    return "SUCCESS" if success else "FAILURE", out
 
 def export_work(dry_run=False):
     print("\n" + "="*70); print("--- Task: Exporting Work Vault ---")
     if not os.getenv("BW_WORK_CLIENT_ID_UUID"):
         print("SKIP: Work Vault not configured in .env")
-        return True, ""
-    return run_command([BW_EXPORT_SCRIPT_PATH, 'work'], is_python_script=True)
+        return "SKIPPED", ""
+    if not _check_env_vars(["BITWARDEN_WORK_PASSWORD"]):
+        return "FAILURE", "Missing BITWARDEN_WORK_PASSWORD"
+    success, out = run_command([BW_EXPORT_SCRIPT_PATH, 'work'], is_python_script=True)
+    return "SUCCESS" if success else "FAILURE", out
 
 def convert_json_to_kdbx(dry_run=False):
     print("\n" + "="*70); print("--- Task: Converting New JSON to KDBX ---")
@@ -156,10 +182,15 @@ def convert_json_to_kdbx(dry_run=False):
 
     vaults_dir_override = os.getenv("DRY_RUN_VAULTS_DIR")
     json_dir = (Path(vaults_dir_override) if vaults_dir_override else VAULTS_DIR) / 'json'
-    if not json_dir.exists(): return True, ""
+    
+    if not json_dir.exists(): 
+        print("SKIP: JSON directory does not exist. Nothing to convert.")
+        return "SKIPPED", ""
 
     json_files = list(json_dir.glob('*.json'))
-    if not json_files: return True, ""
+    if not json_files: 
+        print("SKIP: No JSON files found. Nothing to convert.")
+        return "SKIPPED", ""
 
     all_success = True; final_output = ""
 
@@ -188,14 +219,7 @@ def convert_json_to_kdbx(dry_run=False):
             all_success = False
             final_output += f"\n[File: {json_file.name}]\n{output}\n"
 
-    return all_success, final_output if not all_success else ""
-
-def raindrop_backup(dry_run=False):
-    print("\n" + "="*70); print("--- Task: Backing up Raindrop.io ---")
-    if not os.getenv("RAINDROP_BACKUP_DESTINATION"):
-        print("SKIP: Raindrop backup not configured (missing RAINDROP_BACKUP_DESTINATION).")
-        return True, ""
-    return run_command([RAINDROP_BACKUP_SCRIPT_PATH], is_python_script=True)
+    return "SUCCESS" if all_success else "FAILURE", final_output if not all_success else ""
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -210,7 +234,7 @@ def run_rsync_sync(source, dest, task_name, dry_run=False, excludes=None):
     print(f"Syncing FROM: {source}")
     print(f"Syncing TO:   {dest}")
 
-    cmd = ["rsync", "-rltDv", "--delete"]
+    cmd =["rsync", "-rltDv", "--delete"]
     if dry_run: cmd.append("--dry-run")
     if excludes:
         for item in excludes:
@@ -220,10 +244,9 @@ def run_rsync_sync(source, dest, task_name, dry_run=False, excludes=None):
     return run_command(cmd)
 
 def _make_rsync_task(job_file: Path):
-    """Factory that returns a task function bound to a specific .json rsync job file."""
     def rsync_task(dry_run=False):
         print("\n" + "="*70)
-        print(f"--- Task: Rsync Job [{job_file.stem}] ---")
+        print(f"--- Task: Rsync Job[{job_file.stem}] ---")
         
         try:
             with open(job_file, 'r', encoding='utf-8') as f:
@@ -231,7 +254,7 @@ def _make_rsync_task(job_file: Path):
         except Exception as e:
             error_msg = f"Failed to parse JSON config in {job_file.name}: {e}"
             print(f"❌ {error_msg}")
-            return False, error_msg
+            return "FAILURE", error_msg
 
         raw_source = config.get("source", "")
         raw_dest   = config.get("dest", "")
@@ -241,17 +264,17 @@ def _make_rsync_task(job_file: Path):
         excludes = config.get("excludes",[])
 
         if not source or (source == raw_source and raw_source.startswith('$')):
-            return False, f"Source path missing or environment variable unresolved: {raw_source}"
+            return "FAILURE", f"Source path missing or environment variable unresolved: {raw_source}"
         if not dest or (dest == raw_dest and raw_dest.startswith('$')):
-            return False, f"Dest path missing or environment variable unresolved: {raw_dest}"
+            return "FAILURE", f"Dest path missing or environment variable unresolved: {raw_dest}"
 
-        return run_rsync_sync(source, dest, job_file.stem, dry_run=dry_run, excludes=excludes)
+        success, out = run_rsync_sync(source, dest, job_file.stem, dry_run=dry_run, excludes=excludes)
+        return "SUCCESS" if success else "FAILURE", out
 
     rsync_task.__name__ = f"rsync_{job_file.stem}"
     return rsync_task
 
 def _discover_rsync_tasks() -> dict:
-    """Scan RSYNC_JOBS_DIR for *.json files and return task dictionary."""
     if not RSYNC_JOBS_DIR.exists():
         print(f"[INFO] Rsync jobs directory not found: {RSYNC_JOBS_DIR}")
         print( "       Create it and drop *.json config files inside to add sync jobs.")
@@ -276,7 +299,6 @@ def _discover_rsync_tasks() -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _make_ffs_task(batch_path: Path):
-    """Factory that returns a task function bound to a specific .ffs_batch file."""
     def ffs_task(dry_run=False):
         print("\n" + "="*70)
         print(f"--- Task: FFS Sync [{batch_path.stem}] ---")
@@ -284,21 +306,21 @@ def _make_ffs_task(batch_path: Path):
 
         if dry_run:
             print(f"DRY RUN: Would execute FFS batch job: {batch_path.name}")
-            return True, ""
+            return "SUCCESS", ""
 
         if not str(FFS_PATH).strip() or not FFS_PATH.exists():
             error_msg = f"FreeFileSync executable not found at: '{FFS_PATH}'\nSet FFS_PATH in your .env to the correct path."
             print(f"❌ {error_msg}")
-            return False, error_msg
+            return "FAILURE", error_msg
 
-        return run_command([FFS_PATH, str(batch_path)])
+        success, out = run_command([FFS_PATH, str(batch_path)])
+        return "SUCCESS" if success else "FAILURE", out
 
     ffs_task.__name__ = f"ffs_{batch_path.stem}"
     return ffs_task
 
 
 def _discover_ffs_tasks() -> dict:
-    """Scan FFS_JOBS_DIR for *.ffs_batch files and return task dictionary."""
     if not FFS_JOBS_DIR.exists():
         print(f"[INFO] FFS jobs directory not found: {FFS_JOBS_DIR}")
         print( "       Create it and drop *.ffs_batch files inside to add sync jobs.")
@@ -514,7 +536,7 @@ def update_status_json(start, end, success, task_results):
     if success: status_data['last_success_timestamp'] = run_summary['end_timestamp']
     else:       status_data['last_failure_timestamp'] = run_summary['end_timestamp']
 
-    status_data["run_history"] = [run_summary] + status_data.get("run_history", [])[:9]
+    status_data["run_history"] =[run_summary] + status_data.get("run_history", [])[:9]
     with open(STATUS_FILE, 'w') as f: json.dump(status_data, f, indent=4)
 
 
@@ -559,10 +581,11 @@ def update_status_dashboard_md():
 def main():
     # ── Base tasks: identical on both platforms ───────────────────────────────
     all_tasks = {
-        'raindrop-backup': raindrop_backup,
-        'export-personal': export_personal,
-        'export-work':     export_work,
-        'convert-kdbx':    convert_json_to_kdbx,
+        'raindrop-personal': raindrop_personal,
+        'raindrop-work':     raindrop_work,
+        'export-personal':   export_personal,
+        'export-work':       export_work,
+        'convert-kdbx':      convert_json_to_kdbx,
     }
 
     # ── Sync tasks: platform-specific discovery ───────────────────────────────
@@ -608,13 +631,21 @@ def main():
         for task_func in task_list:
             print(f"\n### Starting Task: {task_func.__name__}")
             t_start = time.time()
-            success, output = task_func(dry_run=args.dry_run)
+            
+            # Tasks now return strings: "SUCCESS", "FAILURE", or "SKIPPED"
+            status, output = task_func(dry_run=args.dry_run)
+            
+            # If the task is skipped, do NOT add it to the dashboard report
+            if status == "SKIPPED":
+                print(f"--- Task '{task_func.__name__}' Skipped ---")
+                continue
+
             task_results[task_func.__name__] = {
-                "status":   "SUCCESS" if success else "FAILURE",
+                "status":   status,
                 "duration": round(time.time() - t_start, 2)
             }
 
-            if not success:
+            if status == "FAILURE":
                 overall_success = False
                 failed_task    = task_func.__name__
                 failure_output = output
