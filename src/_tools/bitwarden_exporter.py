@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import os
 import sys
-import platform
 import subprocess
 from datetime import datetime
 from dotenv import load_dotenv
@@ -11,8 +10,6 @@ from bitwarden_sdk import BitwardenClient, client_settings_from_dict
 # common_utils.py lives in the same directory as this script (src/_tools/)
 sys.path.append(str(Path(__file__).resolve().parent))
 from common_utils import rotate_backups
-
-IS_WINDOWS = platform.system() == "Windows"
 
 def load_master_env():
     root_path_str = os.getenv("AUTOMATION_ROOT")
@@ -77,30 +74,23 @@ def get_config(vault_type: str, root_path: Path):
     config = {}
     cli_path = os.getenv("BW_CLI_PATH", "bw")
 
-    if IS_WINDOWS:
-        config["bw_command"] = root_path / cli_path
+    # Unified Path Resolution (Works perfectly on BOTH Windows and Linux)
+    if cli_path.lower() in ["bw", "bw.exe"]:
+        import shutil as _shutil
+        system_bw = _shutil.which("bw")
+        if system_bw:
+            print(f"[INFO] Using system-wide Bitwarden CLI at: {system_bw}")
+            config["bw_command"] = Path(system_bw)
+        else:
+            print("FATAL: 'bw' not found on system PATH. Install it or check your BW_CLI_PATH.")
+            sys.exit(1)
+    else:
+        # If the user provides a custom path (absolute or relative)
+        resolved = Path(cli_path) if Path(cli_path).is_absolute() else root_path / cli_path
+        config["bw_command"] = resolved
         if not config["bw_command"].exists():
             print(f"FATAL: Bitwarden CLI not found at resolved path: {config['bw_command']}")
             sys.exit(1)
-    else:
-        if Path(cli_path).is_absolute():
-            resolved = Path(cli_path)
-        elif cli_path == "bw" or "/" not in cli_path:
-            resolved = Path(cli_path)
-        else:
-            resolved = root_path / cli_path
-
-        if resolved.suffix.lower() == ".exe":
-            import shutil as _shutil
-            system_bw = _shutil.which("bw")
-            if system_bw:
-                print(f"[INFO] BW_CLI_PATH resolves to a Windows binary ('{resolved.name}'). Using system 'bw' instead.")
-                config["bw_command"] = Path(system_bw)
-            else:
-                print("FATAL: BW_CLI_PATH points to a .exe but 'bw' was not found on system PATH.")
-                sys.exit(1)
-        else:
-            config["bw_command"] = resolved
 
     config["api_url"] = os.getenv("BW_API_URL")
     config["identity_url"] = os.getenv("BW_IDENTITY_URL")
@@ -168,8 +158,7 @@ def bw_login(config, client_id, client_secret):
         print("[AUTH] Logging in to Bitwarden using API key...")
         os.environ['BW_CLIENTID'] = client_id
         os.environ['BW_CLIENTSECRET'] = client_secret
-        subprocess.run(
-            [str(config["bw_command"]), "login", "--apikey"],
+        subprocess.run([str(config["bw_command"]), "login", "--apikey"],
             check=True, capture_output=True, text=True
         )
         print("OK: Logged in successfully. Syncing vault...")

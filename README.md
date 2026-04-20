@@ -316,23 +316,28 @@ python3 src/master_automation.py run-tasks raindrop-work --dry-run
 
 ### Updating Dependencies
 
+To update your environment, download the latest CLI tools, or repair a broken setup, run the setup script with the force flag:
+
 #### 🪟 Windows
 ```cmd
-update.bat
+setup.bat /f
 ```
 
 #### 🐧 Linux
 ```bash
-sudo ./update.sh
+sudo ./setup.sh -f
 ```
 
 ---
 
 ### Running Tests
 
+#### 🪟 Windows
 ```cmd
 tests.bat
 ```
+
+#### 🐧 Linux
 ```bash
 ./tests.sh
 ```
@@ -398,8 +403,7 @@ ctrl_s_master/
 ├── 📦 requirements.txt                   # Python dependencies.
 │
 ├── ▶️  run.bat / run.sh                  # Supervisor: mount, run, backup, unmount.
-├── ⚙️  setup.bat / setup.sh              # One-time environment setup.
-├── 🔄 update.bat / update.sh             # Update all dependencies.
+├── ⚙️  setup.bat / setup.sh              # Setup & Update environment.
 ├── 🧪 tests.bat / tests.sh              # Test suite launcher.
 │
 ├── 📁 src/
