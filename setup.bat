@@ -25,7 +25,7 @@ echo %LOG_FILE%
 
 (
     echo =============================================================
-    echo =              PROJECT SETUP & UPDATE ENGINE                =
+    echo =              PROJECT SETUP AND UPDATE ENGINE              =
     echo =                  RUN AT: %date% %time%                    =
     echo =============================================================
 ) > "%LOG_FILE%" 2>&1
@@ -68,11 +68,11 @@ echo [INFO] Syncing system Bitwarden CLI via Chocolatey... >> "%LOG_FILE%" 2>&1
 where choco >nul 2>nul
 if !errorlevel! neq 0 (
     echo [FATAL] Chocolatey is not installed or not on PATH! >> "%LOG_FILE%" 2>&1
-    echo [INFO] Please install Chocolatey (chocolatey.org) to manage the Bitwarden CLI. >> "%LOG_FILE%" 2>&1
+    echo [INFO] Please install Chocolatey from chocolatey.org first. >> "%LOG_FILE%" 2>&1
     goto :end
 )
 
-:: 'upgrade' automatically installs the package if it is missing
+:: choco upgrade handles both initial install and updates
 (choco upgrade bitwarden-cli -y) >> "%LOG_FILE%" 2>&1
 
 (

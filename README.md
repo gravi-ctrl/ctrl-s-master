@@ -38,6 +38,7 @@ This system uses a **Supervisor & Engine** model designed to keep your data secu
 | VeraCrypt | Encrypted container | [veracrypt.fr](https://www.veracrypt.fr/en/Downloads.html) |
 | FreeFileSync | File syncing | [freefilesync.org](https://freefilesync.org/download.php) |
 | KeePassXC | Viewing `.kdbx` vaults | [keepassxc.org](https://keepassxc.org/download/) |
+| **Chocolatey** | **Tool Management** | **[chocolatey.org](https://chocolatey.org/install)** |
 
 #### 🐧 Linux (Ubuntu/Debian)
 - Root/sudo access is required for mounting.
@@ -48,11 +49,12 @@ This system uses a **Supervisor & Engine** model designed to keep your data secu
 ### Step 2 — One-Time Environment Setup
 
 #### 🪟 Windows
-Open a Command Prompt ++**as admin**++ in the project folder and run:
+1. Open a **Command Prompt as Administrator**.
+2. Navigate to the project folder and run:
 ```cmd
 setup.bat
 ```
-This creates the Python virtual environment, installs all packages from `requirements.txt`, and downloads the Bitwarden CLI.
+*This script will build the Python virtual environment and use Chocolatey to install/update the Bitwarden CLI system-wide.*
 
 #### 🐧 Linux
 ```bash
