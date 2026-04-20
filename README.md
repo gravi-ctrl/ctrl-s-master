@@ -48,11 +48,11 @@ This system uses a **Supervisor & Engine** model designed to keep your data secu
 ### Step 2 — One-Time Environment Setup
 
 #### 🪟 Windows
-Open a Command Prompt in the project folder and run:
+Open a Command Prompt ++**as admin**++ in the project folder and run:
 ```cmd
 setup.bat
 ```
-This creates the Python virtual environment, installs all packages from `requirements.txt`, and downloads the Bitwarden CLI binary into `src/_tools/bw/`.
+This creates the Python virtual environment, installs all packages from `requirements.txt`, and downloads the Bitwarden CLI.
 
 #### 🐧 Linux
 ```bash

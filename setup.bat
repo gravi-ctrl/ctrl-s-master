@@ -8,6 +8,8 @@ setlocal enabledelayedexpansion
 :: Usage:
 ::   setup.bat          - Standard setup / Quick health check
 ::   setup.bat /f       - Force rebuild (Nuclear update)
+::
+:: NOTE: Must be run as Administrator for Chocolatey to work!
 :: =================================================================
 
 set "SCRIPT_DIR=%~dp0"
@@ -61,11 +63,17 @@ echo [INFO] Updating pip and dependencies... >> "%LOG_FILE%" 2>&1
 (%PIP_CMD% install --upgrade pip) >> "%LOG_FILE%" 2>&1
 (%PIP_CMD% install -r "%REQUIREMENTS_FILE%" --upgrade) >> "%LOG_FILE%" 2>&1
 
-:: --- Step 5: System Bitwarden CLI ---
-:: winget install/upgrade are smart enough to handle whichever state the system is in.
-echo [INFO] Syncing system Bitwarden CLI... >> "%LOG_FILE%" 2>&1
-(winget install Bitwarden.cli --exact -e --accept-package-agreements --accept-source-agreements) >> "%LOG_FILE%" 2>&1
-(winget upgrade Bitwarden.cli --exact -e --accept-package-agreements --accept-source-agreements) >> "%LOG_FILE%" 2>&1
+:: --- Step 5: System Bitwarden CLI (Chocolatey) ---
+echo [INFO] Syncing system Bitwarden CLI via Chocolatey... >> "%LOG_FILE%" 2>&1
+where choco >nul 2>nul
+if !errorlevel! neq 0 (
+    echo [FATAL] Chocolatey is not installed or not on PATH! >> "%LOG_FILE%" 2>&1
+    echo [INFO] Please install Chocolatey (chocolatey.org) to manage the Bitwarden CLI. >> "%LOG_FILE%" 2>&1
+    goto :end
+)
+
+:: 'upgrade' automatically installs the package if it is missing
+(choco upgrade bitwarden-cli -y) >> "%LOG_FILE%" 2>&1
 
 (
     echo.
