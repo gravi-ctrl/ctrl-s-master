@@ -253,7 +253,7 @@ TELEGRAM_CHAT_ID=987654321
 | `BITWARDEN_*_PASSWORD` | Password to encrypt the intermediate JSON export files. Choose anything — this is not your Bitwarden master password. |
 | `KDBX_*_PASSWORD` | Password you'll use to open the final `.kdbx` file in KeePassXC. |
 | `FFS_PATH` | **Windows only.** Path to `FreeFileSync.exe`. Can be relative to project root or absolute. |
-| `BW_CLI_PATH` | `src/_tools/bw/bw.exe` on Windows. Set to `bw` on Linux if installed globally. |
+| `BW_CLI_PATH` | Set to `bw` or a custom path if needed. |
 
 ---
 
