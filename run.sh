@@ -41,8 +41,8 @@ cleanup() {
     rm -f "$PROJECT_DIR/.env" 2>/dev/null
     shred -u "$PROJECT_DIR/.temp_env_handoff" 2>/dev/null || rm -f "$PROJECT_DIR/.temp_env_handoff" 2>/dev/null
     
-    # 3. Force dismount container
-    sudo veracrypt --text --non-interactive --dismount "$VC_CONTAINER" >> "$LOG_FILE" 2>&1
+    # 3. Force dismount container (Silenced to prevent log noise on normal exits)
+    sudo veracrypt --text --non-interactive --dismount "$VC_CONTAINER" >/dev/null 2>&1
 }
 # EXIT = normal end, INT = Ctrl+C, TERM = kill command, HUP = SSH disconnect
 trap cleanup EXIT INT TERM HUP
