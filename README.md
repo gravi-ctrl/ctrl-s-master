@@ -59,7 +59,7 @@ setup.bat
 #### 🐧 Linux
 ```bash
 chmod +x setup.sh
-./setup.sh
+sudo ./setup.sh
 ```
 This installs system packages, VeraCrypt (via PPA), the Bitwarden CLI, and creates the Python virtual environment.
 
