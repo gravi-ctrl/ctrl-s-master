@@ -229,7 +229,10 @@ def convert_json_to_kdbx(dry_run=False):
 def run_rsync_sync(source, dest, task_name, dry_run=False, excludes=None):
     if not source or not dest: return False, f"Missing paths for {task_name}."
     if not Path(source).exists(): return False, f"Source directory does not exist: {source}"
-    if not dry_run: Path(dest).mkdir(parents=True, exist_ok=True)
+
+    if not dry_run:
+        dest_path = Path(dest).resolve()
+        dest_path.mkdir(parents=True, exist_ok=True)
 
     print(f"Syncing FROM: {source}")
     print(f"Syncing TO:   {dest}")
