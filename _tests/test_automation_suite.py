@@ -10,9 +10,7 @@ Design notes
 ------------
 - Tests that require live credentials (Bitwarden, Raindrop) are intentionally
   omitted. Those are integration concerns, not unit/orchestration concerns.
-- The 'convert-kdbx' task is used as a guaranteed-success stand-in wherever
-  a working task is needed: when no vaults/json dir exists it returns (True, "")
-  immediately without needing any credentials or external tools.
+- A dynamically generated 'dummy_worker.py' is used to simulate successful tasks.
 - All status output is redirected to _tests/ so no files are written to the
   project root during testing.
 - Both notification channels (Email + Telegram) are disabled in the fixture.
@@ -37,15 +35,14 @@ TESTS_DIR = ROOT_DIR / "_tests"
 
 # Add src/_tools to path so common_utils can be imported directly.
 sys.path.insert(0, str(ROOT_DIR / "src" / "_tools"))
-from common_utils import rotate_backups  # noqa: E402  (import after path manipulation)
+from common_utils import rotate_backups  # noqa: E402
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _run_master(*args: str) -> subprocess.CompletedProcess:
     """Spawn master_automation.py in a subprocess, inheriting the test env."""
-    return subprocess.run(
-        [sys.executable, str(ROOT_DIR / "src" / "master_automation.py"), *args],
+    return subprocess.run([sys.executable, str(ROOT_DIR / "src" / "master_automation.py"), *args],
         capture_output=True, text=True,
     )
 
@@ -68,7 +65,7 @@ def _session_cleanup():
     if temp_dir.exists():
         shutil.rmtree(temp_dir, ignore_errors=True)
     # Clean up test-scoped status files
-    for leftover in ["status_test.json", "status_dashboard_test.md"]:
+    for leftover in["status_test.json", "status_dashboard_test.md"]:
         f = TESTS_DIR / leftover
         if f.exists():
             f.unlink()
@@ -78,11 +75,6 @@ def _session_cleanup():
 def env(monkeypatch, _session_cleanup):
     """
     Prepare a clean, isolated environment before each test.
-
-    - Wipes and recreates _tests/temp/
-    - Redirects every path that master_automation.py writes to
-    - Disables both notification channels
-    - Points script paths to the correct (unified) worker scripts
     """
     temp_dir = TESTS_DIR / "temp"
 
@@ -92,6 +84,10 @@ def env(monkeypatch, _session_cleanup):
             shutil.rmtree(item, ignore_errors=True) if item.is_dir() else item.unlink()
     else:
         temp_dir.mkdir(parents=True, exist_ok=True)
+
+    # ── Dummy Worker Script (Guaranteed Success) ──
+    dummy_worker = temp_dir / "dummy_worker.py"
+    dummy_worker.write_text("print('Dummy worker success')")
 
     # Mock sync source dirs (needed so sync tasks don't error on missing source)
     src_2fa = temp_dir / "src_2fa"
@@ -110,16 +106,14 @@ def env(monkeypatch, _session_cleanup):
     monkeypatch.setenv("SYNC_2FA_DEST",            str(temp_dir / "2fa"))
     monkeypatch.setenv("SYNC_BACKUPS_DEST",        str(temp_dir / "backups"))
 
-    # ── Correct (unified) worker script paths ──
-    monkeypatch.setenv("BW_EXPORT_SCRIPT_PATH",       "src/_tools/bitwarden_exporter.py")
-    monkeypatch.setenv("RAINDROP_BACKUP_SCRIPT_PATH", "src/_tools/raindrop_backup.py")
+    # ── Point worker scripts to the Dummy Success Script ──
+    monkeypatch.setenv("BW_EXPORT_SCRIPT_PATH",       str(dummy_worker))
+    monkeypatch.setenv("RAINDROP_BACKUP_SCRIPT_PATH", str(dummy_worker))
 
-    # ── Dummy credential placeholders ──
-    # These allow tasks that do an env-var check to pass the check without real
-    # credentials. convert-kdbx checks for these before checking if json/ exists,
-    # so without them it errors out before reaching the "no json dir → skip" shortcut.
-    monkeypatch.setenv("KDBX_PERSONAL_PASSWORD",  "test_placeholder")
-    monkeypatch.setenv("KDBX_WORK_PASSWORD",       "test_placeholder")
+    # ── Dummy credential placeholders (Prevents "SKIPPED" status) ──
+    monkeypatch.setenv("RAINDROP_PERSONAL_API_TOKEN", "dummy_token")
+    monkeypatch.setenv("BW_PERSONAL_CLIENT_ID_UUID",  "dummy_uuid")
+    monkeypatch.setenv("BITWARDEN_PERSONAL_PASSWORD", "dummy_pwd")
 
     # ── Disable all notifications ──
     monkeypatch.setenv("EMAIL_SENDER",       "")
@@ -133,7 +127,7 @@ def env(monkeypatch, _session_cleanup):
     monkeypatch.setenv("AUTOMATION_TEST_MODE", "true")
 
     # Clean up test-scoped status files from any previous test
-    for leftover in ["status_test.json", "status_dashboard_test.md"]:
+    for leftover in["status_test.json", "status_dashboard_test.md"]:
         f = TESTS_DIR / leftover
         if f.exists():
             f.unlink()
@@ -144,77 +138,48 @@ def env(monkeypatch, _session_cleanup):
 # ── Unit Tests: rotate_backups ────────────────────────────────────────────────
 
 class TestRotateBackups:
-    """
-    Pure unit tests for common_utils.rotate_backups.
-    No subprocesses, no env vars, no credentials needed.
-    """
-
     def test_deletes_oldest_files_when_over_limit(self, env):
-        """Keeps the N newest files and removes the rest."""
         backup_dir = env / "rotation_test"
         backup_dir.mkdir()
-
-        # Create 5 files with distinct mtimes
         for i in range(5):
             (backup_dir / f"backup_{i:03d}.zip").write_text(f"content {i}")
-            time.sleep(0.02)  # ensure distinct modification times
-
+            time.sleep(0.02)
         rotate_backups(backup_dir, "*.zip", max_to_keep=3)
-
         remaining = sorted(backup_dir.glob("*.zip"))
-        assert len(remaining) == 3, f"Expected 3 files, got {[f.name for f in remaining]}"
-        # The 3 newest (indices 2, 3, 4) must survive
+        assert len(remaining) == 3
         assert remaining[0].name == "backup_002.zip"
         assert remaining[1].name == "backup_003.zip"
         assert remaining[2].name == "backup_004.zip"
 
     def test_does_nothing_when_under_limit(self, env):
-        """Does not delete anything when file count is within the limit."""
         backup_dir = env / "rotation_under"
         backup_dir.mkdir()
         for i in range(2):
             (backup_dir / f"backup_{i}.zip").write_text("x")
-
         rotate_backups(backup_dir, "*.zip", max_to_keep=5)
-
         assert len(list(backup_dir.glob("*.zip"))) == 2
 
     def test_does_nothing_when_disabled(self, env):
-        """max_to_keep=0 means rotation is off — all files are preserved."""
         backup_dir = env / "rotation_disabled"
         backup_dir.mkdir()
         for i in range(10):
             (backup_dir / f"backup_{i}.zip").write_text("x")
-
         rotate_backups(backup_dir, "*.zip", max_to_keep=0)
-
         assert len(list(backup_dir.glob("*.zip"))) == 10
 
     def test_handles_empty_directory_gracefully(self, env):
-        """No files to rotate should not raise any exception."""
         backup_dir = env / "rotation_empty"
         backup_dir.mkdir()
-        rotate_backups(backup_dir, "*.zip", max_to_keep=3)  # must not raise
+        rotate_backups(backup_dir, "*.zip", max_to_keep=3)
 
 
 # ── Integration Tests: orchestration behaviour ────────────────────────────────
 
 class TestOrchestration:
-    """
-    Tests for master_automation.py's orchestration logic.
-
-    All tests use the 'convert-kdbx' task as a guaranteed-success stand-in:
-    when no vaults/json directory exists it returns (True, "") immediately
-    without requiring any credentials or external tools.
-
-    Broken tasks are simulated by pointing a script path env var at a file
-    that does not exist — this causes subprocess.CalledProcessError inside
-    run_command(), which master_automation correctly treats as task failure.
-    """
 
     def test_status_json_written_on_success(self, env):
         """A successful run creates a parseable status.json with SUCCESS status."""
-        result = _run_master("run-tasks", "convert-kdbx")
+        result = _run_master("run-tasks", "raindrop-personal")
 
         assert result.returncode == 0, f"Unexpected failure:\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}"
 
@@ -223,25 +188,26 @@ class TestOrchestration:
         assert len(status["run_history"]) >= 1
 
         tasks = status["run_history"][0]["tasks_summary"]
-        assert "convert_json_to_kdbx" in tasks
-        assert tasks["convert_json_to_kdbx"]["status"] == "SUCCESS"
-        assert tasks["convert_json_to_kdbx"]["duration"] >= 0
+        assert "raindrop_personal" in tasks
+        assert tasks["raindrop_personal"]["status"] == "SUCCESS"
+        assert tasks["raindrop_personal"]["duration"] >= 0
 
     def test_status_json_written_on_failure(self, env, monkeypatch):
         """A failed run creates a status.json with FAILURE status."""
-        monkeypatch.setenv("RAINDROP_BACKUP_SCRIPT_PATH", "src/_tools/nonexistent_script.py")
+        # Mock the worker script to a nonexistent path to trigger a deliberate failure
+        monkeypatch.setenv("BW_EXPORT_SCRIPT_PATH", "src/_tools/nonexistent_script.py")
 
-        result = _run_master("run-tasks", "raindrop-backup")
+        result = _run_master("run-tasks", "export-personal")
 
         assert result.returncode == 1
         status = _read_status()
         assert status["last_run_status"] == "FAILURE"
         tasks = status["run_history"][0]["tasks_summary"]
-        assert tasks["raindrop_backup"]["status"] == "FAILURE"
+        assert tasks["export_personal"]["status"] == "FAILURE"
 
     def test_status_dashboard_written(self, env):
         """A successful run also writes a human-readable status_dashboard.md."""
-        _run_master("run-tasks", "convert-kdbx")
+        _run_master("run-tasks", "raindrop-personal")
 
         dashboard = TESTS_DIR / "status_dashboard_test.md"
         assert dashboard.exists(), "status_dashboard.md was not created"
@@ -254,20 +220,20 @@ class TestOrchestration:
         With CONTINUE_ON_ERROR=false (the default), the run halts immediately
         after the first failing task. Subsequent tasks must not appear in status.
         """
-        monkeypatch.setenv("RAINDROP_BACKUP_SCRIPT_PATH", "src/_tools/nonexistent_script.py")
+        monkeypatch.setenv("BW_EXPORT_SCRIPT_PATH", "src/_tools/nonexistent_script.py")
         monkeypatch.setenv("CONTINUE_ON_ERROR", "false")
 
-        # raindrop-backup (broken) → should stop → convert-kdbx should never run
-        result = _run_master("run-tasks", "raindrop-backup", "convert-kdbx")
+        # export-personal (broken) -> should stop -> raindrop-personal should never run
+        result = _run_master("run-tasks", "export-personal", "raindrop-personal")
 
         assert result.returncode == 1
         status = _read_status()
         tasks = status["run_history"][0]["tasks_summary"]
 
-        assert "raindrop_backup" in tasks
-        assert tasks["raindrop_backup"]["status"] == "FAILURE"
-        assert "convert_json_to_kdbx" not in tasks, (
-            "convert-kdbx ran despite CONTINUE_ON_ERROR=false — run did not stop."
+        assert "export_personal" in tasks
+        assert tasks["export_personal"]["status"] == "FAILURE"
+        assert "raindrop_personal" not in tasks, (
+            "raindrop_personal ran despite CONTINUE_ON_ERROR=false — run did not stop."
         )
 
     def test_failure_continues_when_configured(self, env, monkeypatch):
@@ -275,26 +241,26 @@ class TestOrchestration:
         With CONTINUE_ON_ERROR=true, the run continues past a failing task.
         The overall exit code is still 1, but subsequent tasks do execute.
         """
-        monkeypatch.setenv("RAINDROP_BACKUP_SCRIPT_PATH", "src/_tools/nonexistent_script.py")
+        monkeypatch.setenv("BW_EXPORT_SCRIPT_PATH", "src/_tools/nonexistent_script.py")
         monkeypatch.setenv("CONTINUE_ON_ERROR", "true")
 
-        # raindrop-backup (broken) → continue → convert-kdbx (guaranteed success)
-        result = _run_master("run-tasks", "raindrop-backup", "convert-kdbx")
+        # export-personal (broken) -> continue -> raindrop-personal (guaranteed success)
+        result = _run_master("run-tasks", "export-personal", "raindrop-personal")
 
         assert result.returncode == 1, "Overall exit code must be 1 when any task fails."
         status = _read_status()
         tasks = status["run_history"][0]["tasks_summary"]
 
-        assert tasks["raindrop_backup"]["status"] == "FAILURE"
-        assert "convert_json_to_kdbx" in tasks, (
-            "convert-kdbx did not run — CONTINUE_ON_ERROR=true was not respected."
+        assert tasks["export_personal"]["status"] == "FAILURE"
+        assert "raindrop_personal" in tasks, (
+            "raindrop_personal did not run — CONTINUE_ON_ERROR=true was not respected."
         )
-        assert tasks["convert_json_to_kdbx"]["status"] == "SUCCESS"
+        assert tasks["raindrop_personal"]["status"] == "SUCCESS"
 
     def test_run_history_accumulates(self, env):
         """Successive runs append entries to run_history (capped at 10)."""
         for _ in range(3):
-            _run_master("run-tasks", "convert-kdbx")
+            _run_master("run-tasks", "raindrop-personal")
 
         status = _read_status()
         assert len(status["run_history"]) == 3
@@ -302,7 +268,7 @@ class TestOrchestration:
     def test_run_history_capped_at_ten(self, env):
         """run_history never grows beyond the last 10 entries."""
         for _ in range(12):
-            _run_master("run-tasks", "convert-kdbx")
+            _run_master("run-tasks", "raindrop-personal")
 
         status = _read_status()
         assert len(status["run_history"]) == 10
