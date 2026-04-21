@@ -38,7 +38,7 @@ This system uses a **Supervisor & Engine** model designed to keep your data secu
 | VeraCrypt | Encrypted container | [veracrypt.fr](https://www.veracrypt.fr/en/Downloads.html) |
 | FreeFileSync | File syncing | [freefilesync.org](https://freefilesync.org/download.php) |
 | KeePassXC | Viewing `.kdbx` vaults | [keepassxc.org](https://keepassxc.org/download/) |
-| **Chocolatey** | **Tool Management** | **[chocolatey.org](https://chocolatey.org/install)** |
+| Chocolatey | Tool Management | [chocolatey.org](https://chocolatey.org/install) |
 
 #### 🐧 Linux (Ubuntu/Debian)
 - Root/sudo access is required for mounting.
@@ -318,7 +318,7 @@ python3 src/master_automation.py run-tasks raindrop-work --dry-run
 
 ### Updating Dependencies
 
-To update your environment, download the latest CLI tools, or repair a broken setup, run the setup script with the force flag:
+To update your environment, download the latest CLI tools, or repair a broken setup, run the setup script in a **Command Prompt as Administrator** with the force flag:
 
 #### 🪟 Windows
 ```cmd
