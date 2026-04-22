@@ -25,11 +25,10 @@ def load_master_env():
 
     env_path = root_path / '.env'
     if env_path.is_file():
-        load_dotenv(dotenv_path=env_path)
+        load_dotenv(dotenv_path=env_path, override=False)
         print(f"[INFO] Loaded configuration from {env_path}")
     else:
-        print(f"FATAL: Master .env file not found at expected path: {env_path}")
-        sys.exit(1)
+        print(f"[INFO] No .env file on disk at {env_path}. Relying on existing environment variables.")
 
 def get_config(account_type):
     if not os.getenv("RAINDROP_BACKUP_DESTINATION"):

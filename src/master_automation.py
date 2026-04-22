@@ -22,7 +22,11 @@ from datetime import datetime
 IS_WINDOWS = platform.system() == "Windows"
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-load_dotenv(dotenv_path=ROOT_DIR / '.env')
+
+# Load .env from disk only when the file is actually present.
+_env_file = ROOT_DIR / '.env'
+if _env_file.exists():
+    load_dotenv(dotenv_path=_env_file, override=False)
 
 # Expose AUTOMATION_ROOT globally so os.path.expandvars can use it in Linux configs
 os.environ["AUTOMATION_ROOT"] = str(ROOT_DIR)

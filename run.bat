@@ -32,6 +32,10 @@ set "LOG_FILE=%LOG_DIR%run_%timestamp%.log"
 set "PYTHON_EXE=%SCRIPT_DIR%venv\Scripts\python.exe"
 set "MASTER_SCRIPT=%SCRIPT_DIR%src\master_automation.py"
 
+:: Temp file paths for env loading (in %TEMP% so no permission issues)
+set "ENV_PY=%TEMP%\vc_%timestamp%.py"
+set "ENV_OUT=%TEMP%\vc_%timestamp%.txt"
+
 :: Clean up any old failure logs before starting
 del /q "%LOG_DIR%failure_details.log" 2>nul
 
@@ -48,8 +52,6 @@ echo --- Starting Run at %date% %time% --- >> "%LOG_FILE%"
 :: =================================================================
 "%VERACRYPT_EXE%" /d %MOUNT_DRIVE% /q /s /f >nul 2>&1
 for %%F in (%SECURE_FOLDERS%) do ( rmdir /q "%SCRIPT_DIR%%%F" 2>nul )
-if exist "%SCRIPT_DIR%.env" echo[SECURE_WIPE] > "%SCRIPT_DIR%.env"
-del /q "%SCRIPT_DIR%.env" 2>nul
 timeout /t 2 >nul
 :: =================================================================
 
@@ -74,8 +76,42 @@ for %%F in (%SECURE_FOLDERS%) do (
     rmdir /s /q "%SCRIPT_DIR%%%F" 2>nul
     mklink /J "%SCRIPT_DIR%%%F" "%MOUNT_DRIVE%:\%%F" >> "%LOG_FILE%" 2>&1
 )
-del /q "%SCRIPT_DIR%.env" 2>nul
-copy /y "%MOUNT_DRIVE%:\.env" "%SCRIPT_DIR%.env" >> "%LOG_FILE%" 2>&1
+
+:: --- 3b. LOAD SECRETS INTO RAM ---
+:: Previous attempt used "%PYTHON_EXE%" inside a for/f backtick block.
+:: Cmd treats the quoted exe path + everything after it as one big "command
+:: name" when the path contains spaces, so the command was never run at all.
+::
+:: Fix: write the Python snippet to a temp .py file and execute it normally
+:: (not inside backticks), then read its output from a temp .txt file using
+:: for /f with a filename (not a command). This completely avoids the
+:: backtick-quoting problem and works regardless of spaces in PYTHON_EXE.
+::
+:: tokens=1* delims== splits on the FIRST '=' only, so values that themselves
+:: contain '=' (e.g. base64 tokens) are preserved intact in %%B.
+::
+:: _VC_ENV_OK=1 is the last line Python prints. If it is not defined after the
+:: loop, something went wrong and the Python error will be in the log above.
+echo Loading secrets into RAM... >> "%LOG_FILE%"
+
+echo from dotenv import dotenv_values > "%ENV_PY%"
+echo d = dotenv_values(r'%MOUNT_DRIVE%:\.env') >> "%ENV_PY%"
+echo for k, v in d.items(): >> "%ENV_PY%"
+echo     if v is not None: >> "%ENV_PY%"
+echo         print(k + '=' + v) >> "%ENV_PY%"
+echo print('_VC_ENV_OK=1') >> "%ENV_PY%"
+
+"%PYTHON_EXE%" "%ENV_PY%" > "%ENV_OUT%" 2>>"%LOG_FILE%"
+del /q "%ENV_PY%" 2>nul
+
+for /f "usebackq tokens=1* delims==" %%A in ("%ENV_OUT%") do set "%%A=%%B"
+del /q "%ENV_OUT%" 2>nul
+
+if not defined _VC_ENV_OK (
+    echo FATAL: Failed to load .env from container - check log above for Python error. >> "%LOG_FILE%"
+    goto emergency_cleanup
+)
+set "_VC_ENV_OK="
 
 :: --- 4. RUN PYTHON TASKS ---
 echo Running Python Engine... >> "%LOG_FILE%"
@@ -84,19 +120,12 @@ echo Running Python Engine... >> "%LOG_FILE%"
 ) >> "%LOG_FILE%" 2>&1
 set "PYTHON_EXIT_CODE=!errorlevel!"
 
-:: --- PRESERVE SECRETS FOR EMAIL ---
-if exist "%SCRIPT_DIR%.env" (
-    copy /y "%SCRIPT_DIR%.env" "%SCRIPT_DIR%.temp_env_handoff" >nul 2>&1
-    icacls "%SCRIPT_DIR%.temp_env_handoff" /inheritance:r /grant "%USERNAME%:F" >nul 2>&1
-)
-
 :: --- 5. UNMOUNT ---
+:: Secrets remain alive in this cmd process's environment (RAM).
+:: No .temp_env_handoff file is needed -- send-report (step 7) runs in this
+:: same process and inherits all variables automatically.
 echo Unmounting container... >> "%LOG_FILE%"
 for %%F in (%SECURE_FOLDERS%) do ( rmdir /q "%SCRIPT_DIR%%%F" 2>nul )
-
-:: Secure wipe: overwrite with dummy text before deleting
-if exist "%SCRIPT_DIR%.env" echo [SECURE_WIPE] > "%SCRIPT_DIR%.env"
-del /q "%SCRIPT_DIR%.env" 2>nul
 
 "%VERACRYPT_EXE%" /d %MOUNT_DRIVE% /q /s >> "%LOG_FILE%" 2>&1
 
@@ -107,39 +136,31 @@ if !PYTHON_EXIT_CODE! equ 0 (
     if exist "%BACKUP_DEST%\" (
         copy /y "%VC_CONTAINER%" "%BACKUP_DEST%\%BACKUP_FILENAME%" >> "%LOG_FILE%" 2>&1
         if !errorlevel! equ 0 (
-            echo ✅ Container Backup Successful. >> "%LOG_FILE%"
+            echo Container Backup Successful. >> "%LOG_FILE%"
             for %%F in ("%BACKUP_DEST%\ctrl_s_master_*.hc") do (
                 if /I not "%%~nxF"=="%BACKUP_FILENAME%" del /q "%%F" >nul 2>&1
             )
         ) else (
-            echo ❌ ERROR: Failed to copy container file. >> "%LOG_FILE%"
+            echo ERROR: Failed to copy container file. >> "%LOG_FILE%"
             set "FINAL_EXIT_CODE=1"
         )
     ) else (
-        echo ❌ ERROR: Backup destination not found: %BACKUP_DEST% >> "%LOG_FILE%"
+        echo ERROR: Backup destination not found: %BACKUP_DEST% >> "%LOG_FILE%"
         set "FINAL_EXIT_CODE=1"
     )
 ) else (
-    echo ⚠️ Skipping Container Backup because Python tasks failed. >> "%LOG_FILE%"
+    echo Skipping Container Backup because Python tasks failed. >> "%LOG_FILE%"
 )
 
 :: --- 7. SEND REPORT ---
-if exist "%SCRIPT_DIR%.temp_env_handoff" (
-    copy /y "%SCRIPT_DIR%.temp_env_handoff" "%SCRIPT_DIR%.env" >nul 2>&1
-)
-
+:: Env vars are still live in this process -- Python inherits them directly.
 if !FINAL_EXIT_CODE! equ 0 (
-    "%PYTHON_EXE%" "%MASTER_SCRIPT%" send-report success > NUL 2>&1
+    "%PYTHON_EXE%" "%MASTER_SCRIPT%" send-report success >> "%LOG_FILE%" 2>&1
 ) else (
-    "%PYTHON_EXE%" "%MASTER_SCRIPT%" send-report failure > NUL 2>&1
+    "%PYTHON_EXE%" "%MASTER_SCRIPT%" send-report failure >> "%LOG_FILE%" 2>&1
 )
 
 :: --- 8. FINAL CLEANUP ---
-if exist "%SCRIPT_DIR%.env" echo [SECURE_WIPE] > "%SCRIPT_DIR%.env"
-if exist "%SCRIPT_DIR%.temp_env_handoff" echo[SECURE_WIPE] > "%SCRIPT_DIR%.temp_env_handoff"
-del /q "%SCRIPT_DIR%.env" 2>nul
-del /q "%SCRIPT_DIR%.temp_env_handoff" 2>nul
-
 echo.
 echo Automation run finished. Check log for details:
 echo %LOG_FILE%
@@ -153,16 +174,14 @@ exit /b !FINAL_EXIT_CODE!
 :emergency_cleanup
 echo [!] Emergency cleanup triggered due to fatal error. >> "%LOG_FILE%"
 
-:: 1. Shred Temp files
-if exist "%SCRIPT_DIR%.env" echo [SECURE_WIPE] > "%SCRIPT_DIR%.env"
-if exist "%SCRIPT_DIR%.temp_env_handoff" echo [SECURE_WIPE] > "%SCRIPT_DIR%.temp_env_handoff"
-del /q "%SCRIPT_DIR%.env" 2>nul
-del /q "%SCRIPT_DIR%.temp_env_handoff" 2>nul
+:: Ensure temp files are gone if we bailed out mid-load
+del /q "%ENV_PY%" 2>nul
+del /q "%ENV_OUT%" 2>nul
 
-:: 2. Remove Links
+:: Remove Links
 for %%F in (%SECURE_FOLDERS%) do ( rmdir /q "%SCRIPT_DIR%%%F" 2>nul )
 
-:: 3. Force Dismount
+:: Force Dismount
 "%VERACRYPT_EXE%" /d %MOUNT_DRIVE% /q /s /f >> "%LOG_FILE%" 2>&1
 
 echo --- Failed at %date% %time% --- >> "%LOG_FILE%"

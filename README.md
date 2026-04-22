@@ -107,7 +107,7 @@ This is a one-time step. You must create the required folder skeleton inside the
    Z:\2fa\
    Z:\backups\
    ```
-3. Copy your configured `.env` file **onto the `Z:` drive** (see Configuration section below). The supervisor copies it out at runtime and deletes it when done — your credentials never sit unencrypted on disk.
+3. Copy your configured `.env` file **onto the `Z:` drive** (see Configuration section below). The supervisor reads it directly from the container at runtime, loading all credentials into memory — they are never written to your project directory.
 4. Unmount from the VeraCrypt GUI.
 
 #### 🐧 Linux
@@ -122,7 +122,7 @@ sudo mkdir -p /mnt/secure_vaults/vaults/json \
               /mnt/secure_vaults/2fa \
               /mnt/secure_vaults/backups
 
-# 3. Move your configured .env inside (symlinked in at runtime)
+# 3. Move your configured .env inside (sourced into memory at runtime)
 sudo mv .env /mnt/secure_vaults/.env
 
 # 4. Fix ownership and unmount
@@ -259,10 +259,9 @@ TELEGRAM_CHAT_ID=987654321
 
 ## 🔐 Security & Cleanup
 
-To prevent API tokens and secret metadata from leaking to your physical disk via unallocated space, the Supervisor scripts perform a **Secure Wipe** on every exit:
+Credentials are never written to the project directory. Instead, the Supervisor scripts load the `.env` directly from the encrypted container **into the shell process's memory** at runtime. Every child process (Python tasks, reports) inherits these variables automatically.
 
-*   **Linux:** Uses `shred -u` to overwrite the temporary `.env` handoff file 3 times with random data before deletion.
-*   **Windows:** Overwrites the temporary `.env` file with dummy data before calling `del`.
+*   **Container unmounts first:** All folder links (junctions/symlinks) are removed and the container is dismounted before the report is sent — the secrets needed for notifications are already in RAM and require no further disk access.
 *   **Links:** Junctions and Symlinks are removed instantly on exit, leaving no path for a threat actor to reach the encrypted data.
 
 ---
@@ -429,12 +428,11 @@ ctrl_s_master/
 ├── 🔗 vaults/                            # Junction (Win) / Symlink (Lin) into container.
 ├── 🔗 2fa/                               # Junction (Win) / Symlink (Lin) into container.
 ├── 🔗 backups/                           # Junction (Win) / Symlink (Lin) into container.
-├── 📄 .env                               # Injected from vault, deleted post-run.
 │
 │   — External —
 └── 🔑 ~/.vc_secret                       # Auto-unlocker keyfile (user home on both OSes).
 ```
-	
+
 ---
 	
 ### Author
