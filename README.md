@@ -261,6 +261,7 @@ TELEGRAM_CHAT_ID=987654321
 
 Credentials are never written to the project directory. Instead, the Supervisor scripts load the `.env` directly from the encrypted container **into the shell process's memory** at runtime. Every child process (Python tasks, reports) inherits these variables automatically.
 
+*   **No temp files:** Credentials live exclusively in the shell process's memory for the duration of the run and vanish the moment the process exits.
 *   **Container unmounts first:** All folder links (junctions/symlinks) are removed and the container is dismounted before the report is sent — the secrets needed for notifications are already in RAM and require no further disk access.
 *   **Links:** Junctions and Symlinks are removed instantly on exit, leaving no path for a threat actor to reach the encrypted data.
 
