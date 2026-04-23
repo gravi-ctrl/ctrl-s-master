@@ -78,27 +78,13 @@ for %%F in (%SECURE_FOLDERS%) do (
 )
 
 :: --- 3b. LOAD SECRETS INTO RAM ---
-:: Previous attempt used "%PYTHON_EXE%" inside a for/f backtick block.
-:: Cmd treats the quoted exe path + everything after it as one big "command
-:: name" when the path contains spaces, so the command was never run at all.
-::
-:: Fix: write the Python snippet to a temp .py file and execute it normally
-:: (not inside backticks), then read its output from a temp .txt file using
-:: for /f with a filename (not a command). This completely avoids the
-:: backtick-quoting problem and works regardless of spaces in PYTHON_EXE.
-::
-:: tokens=1* delims== splits on the FIRST '=' only, so values that themselves
-:: contain '=' (e.g. base64 tokens) are preserved intact in %%B.
-::
-:: _VC_ENV_OK=1 is the last line Python prints. If it is not defined after the
-:: loop, something went wrong and the Python error will be in the log above.
 echo Loading secrets into RAM... >> "%LOG_FILE%"
 
 echo from dotenv import dotenv_values > "%ENV_PY%"
 echo d = dotenv_values(r'%MOUNT_DRIVE%:\.env') >> "%ENV_PY%"
 echo for k, v in d.items(): >> "%ENV_PY%"
 echo     if v is not None: >> "%ENV_PY%"
-echo         print(k + '=' + v) >> "%ENV_PY%"
+echo         print(k + '=' + v.replace('!', '^!')) >> "%ENV_PY%"
 echo print('_VC_ENV_OK=1') >> "%ENV_PY%"
 
 "%PYTHON_EXE%" "%ENV_PY%" > "%ENV_OUT%" 2>>"%LOG_FILE%"
