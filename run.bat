@@ -84,7 +84,7 @@ echo from dotenv import dotenv_values > "%ENV_PY%"
 echo d = dotenv_values(r'%MOUNT_DRIVE%:\.env') >> "%ENV_PY%"
 echo for k, v in d.items(): >> "%ENV_PY%"
 echo     if v is not None: >> "%ENV_PY%"
-echo         print(k + '=' + v.replace('!', '^!')) >> "%ENV_PY%"
+echo         print(k + '=' + v.replace(chr(33), chr(94) + chr(33))) >> "%ENV_PY%"
 echo print('_VC_ENV_OK=1') >> "%ENV_PY%"
 
 "%PYTHON_EXE%" "%ENV_PY%" > "%ENV_OUT%" 2>>"%LOG_FILE%"
