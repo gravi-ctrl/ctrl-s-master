@@ -19,6 +19,11 @@ set "MOUNT_DRIVE=Z"
 set "SECRET_FILE=%USERPROFILE%\.vc_secret"
 set "BACKUP_DEST=D:\x\@Sync\My_Shit"
 
+:: Notify file: used ONLY for fatal pre-load failures (before .env is in RAM).
+:: Contains two lines:  BOT_TOKEN=xxxxx  and  CHAT_ID=xxxxx
+:: Intentionally minimal and stored separately from the container.
+set "NOTIFY_FILE=%USERPROFILE%\.vc_notify"
+
 :: File formatting
 FOR /F "usebackq" %%I IN (`powershell -NoProfile -Command "Get-Date -Format 'yyyy-MM-dd'"`) DO set "TODAY=%%I"
 set "BACKUP_FILENAME=ctrl_s_master_%TODAY%.hc"
@@ -59,6 +64,7 @@ timeout /t 2 >nul
 echo Mounting container... >> "%LOG_FILE%"
 if not exist "%SECRET_FILE%" (
     echo FATAL: Secret file not found at %SECRET_FILE%. >> "%LOG_FILE%"
+    call :notify_fatal "Secret file not found"
     goto emergency_cleanup
 )
 set /p VC_SECRET=<"%SECRET_FILE%"
@@ -67,6 +73,7 @@ set /p VC_SECRET=<"%SECRET_FILE%"
 
 if %errorlevel% neq 0 (
     echo FATAL: Failed to mount VeraCrypt container. >> "%LOG_FILE%"
+    call :notify_fatal "Failed to mount VeraCrypt container"
     goto emergency_cleanup
 )
 
@@ -78,6 +85,16 @@ for %%F in (%SECURE_FOLDERS%) do (
 )
 
 :: --- 3b. LOAD SECRETS INTO RAM ---
+:: Use the venv Python (which already has python-dotenv installed) to parse the
+:: .env from the mounted container and emit SET commands into this process.
+::
+:: chr() is used instead of literal ! and ^ to prevent delayed expansion from
+:: corrupting the Python source before it is written to disk.
+::
+:: tokens=1* delims== splits on the FIRST '=' only, so values that contain '='
+:: (e.g. base64 tokens) are preserved intact in %%B.
+::
+:: _VC_ENV_OK=1 is the last line Python prints — reliable success sentinel.
 echo Loading secrets into RAM... >> "%LOG_FILE%"
 
 echo from dotenv import dotenv_values > "%ENV_PY%"
@@ -95,11 +112,14 @@ del /q "%ENV_OUT%" 2>nul
 
 if not defined _VC_ENV_OK (
     echo FATAL: Failed to load .env from container - check log above for Python error. >> "%LOG_FILE%"
+    call :notify_fatal "Failed to load .env from container"
     goto emergency_cleanup
 )
 set "_VC_ENV_OK="
 
 :: --- 4. RUN PYTHON TASKS ---
+:: From this point on all secrets are in RAM. Failures beyond here are handled
+:: by the normal send-report flow which already has notification credentials.
 echo Running Python Engine... >> "%LOG_FILE%"
 (
     "%PYTHON_EXE%" "%MASTER_SCRIPT%" run-tasks run-all
@@ -172,3 +192,30 @@ for %%F in (%SECURE_FOLDERS%) do ( rmdir /q "%SCRIPT_DIR%%%F" 2>nul )
 
 echo --- Failed at %date% %time% --- >> "%LOG_FILE%"
 exit /b 1
+
+
+:: =================================================================
+:: --- FATAL NOTIFICATION ---
+:: Fires a Telegram message for pre-load failures only (before .env
+:: is in RAM and the normal send-report channel is available).
+:: Reads BOT_TOKEN and CHAT_ID from %USERPROFILE%\.vc_notify.
+:: Completely silent if the file does not exist — nothing breaks.
+:: Must live at the bottom and always be called with CALL, not GOTO.
+:: =================================================================
+:notify_fatal
+if not exist "%NOTIFY_FILE%" exit /b 0
+set "_NF_TOKEN="
+set "_NF_CHATID="
+for /f "usebackq tokens=1* delims==" %%A in ("%NOTIFY_FILE%") do (
+    if "%%A"=="BOT_TOKEN" set "_NF_TOKEN=%%B"
+    if "%%A"=="CHAT_ID"   set "_NF_CHATID=%%B"
+)
+if not defined _NF_TOKEN  exit /b 0
+if not defined _NF_CHATID exit /b 0
+curl -fsS "https://api.telegram.org/bot%_NF_TOKEN%/sendMessage" ^
+     -d "chat_id=%_NF_CHATID%" ^
+     -d "text=[%COMPUTERNAME%] ctrl_s_master FATAL: %~1" ^
+     > nul 2>&1
+set "_NF_TOKEN="
+set "_NF_CHATID="
+exit /b 0

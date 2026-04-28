@@ -11,6 +11,11 @@ MOUNT_POINT="/mnt/secure_vaults"
 SECRET_FILE="/root/.vc_secret"
 SECURE_FOLDERS=("vaults" "2fa" "backups")
 
+# Notify file: used ONLY for fatal pre-load failures (before .env is in RAM).
+# Contains two lines:  BOT_TOKEN=xxxxx  and  CHAT_ID=xxxxx
+# Intentionally minimal and stored separately from the container.
+NOTIFY_FILE="/root/.vc_notify"
+
 MODE="NORMAL"
 LOG_FILE="$PROJECT_DIR/_logs/run_$(date +%Y%m%d_%H%M%S).log"
 BACKUP_DEST="/data/assets/syncthing/My_Shit"
@@ -25,6 +30,26 @@ fi
 mkdir -p "$PROJECT_DIR/_logs"
 mkdir -p "$MOUNT_POINT"
 echo "--- Starting Run at $(date) ---" >> "$LOG_FILE"
+
+# =================================================================
+# --- FATAL NOTIFICATION ---
+# Fires a Telegram message for pre-load failures only (before .env
+# is in RAM and the normal send-report channel is available).
+# Reads BOT_TOKEN and CHAT_ID from /root/.vc_notify.
+# Completely silent if the file does not exist — nothing breaks.
+# =================================================================
+notify_fatal() {
+    local msg="$1"
+    [ -f "$NOTIFY_FILE" ] || return 0
+    local token chat_id
+    token=$(grep '^BOT_TOKEN=' "$NOTIFY_FILE" | cut -d= -f2)
+    chat_id=$(grep '^CHAT_ID=' "$NOTIFY_FILE" | cut -d= -f2)
+    [ -z "$token" ] || [ -z "$chat_id" ] && return 0
+    curl -fsS "https://api.telegram.org/bot${token}/sendMessage" \
+        -d "chat_id=${chat_id}" \
+        -d "text=[$(hostname)] ctrl_s_master FATAL: ${msg}" \
+        > /dev/null 2>&1
+}
 
 # =================================================================
 # --- FAIL-SAFE TRAP (Handles Ctrl+C, SSH Drops, and Crashes) ---
@@ -58,6 +83,7 @@ sudo veracrypt --text --non-interactive --pim=0 --keyfiles="" --protect-hidden=n
 
 if [ $? -ne 0 ]; then
     echo "FATAL: Failed to mount VeraCrypt container." >> "$LOG_FILE"
+    notify_fatal "Failed to mount VeraCrypt container"
     exit 1
 fi
 
@@ -69,6 +95,9 @@ for folder in "${SECURE_FOLDERS[@]}"; do
 done
 
 # Load .env from the container into this shell's environment (RAM only).
+# dotenv_values() handles quoted values, inline comments, CRLF line endings,
+# and values containing shell-special characters correctly.
+# The _VC_ENV_OK sentinel confirms the Python command completed successfully.
 echo "Loading secrets into RAM..." >> "$LOG_FILE"
 _env_exports=$(
     "$PROJECT_DIR/venv/bin/python3" -c "
@@ -90,11 +119,14 @@ eval "$_env_exports"
 
 if [ -z "$_VC_ENV_OK" ]; then
     echo "FATAL: Failed to load .env from container - check log above for Python error." >> "$LOG_FILE"
+    notify_fatal "Failed to load .env from container"
     exit 1
 fi
 unset _VC_ENV_OK
 
 # --- 4. RUN PYTHON TASKS ---
+# From this point on all secrets are in RAM. Failures beyond here are handled
+# by the normal send-report flow which already has notification credentials.
 echo "Running Python Engine..." >> "$LOG_FILE"
 source "$PROJECT_DIR/venv/bin/activate"
 
@@ -106,6 +138,9 @@ fi
 PYTHON_EXIT_CODE=$?
 
 # --- 5. UNMOUNT ---
+# Secrets remain alive in this shell's environment (RAM).
+# No .temp_env_handoff file is needed -- send-report (step 7) runs in this
+# same shell process and inherits all variables automatically.
 echo "Unmounting container..." >> "$LOG_FILE"
 for folder in "${SECURE_FOLDERS[@]}"; do
     rm -rf "$PROJECT_DIR/$folder" 2>/dev/null

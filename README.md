@@ -72,14 +72,14 @@ The supervisor scripts need a way to open the VeraCrypt container without intera
 #### 🪟 Windows
 Create a file named `.vc_secret` in `C:\Users\<YourUsername>\` containing **only** your vault password. Then harden it:
 ```cmd
-:: 1. Hide the file from normal view
+:: 1. Encrypt using Windows EFS (tied to your login)
+cipher /e "%USERPROFILE%\.vc_secret"
+
+:: 2. Hide the file from normal view
 attrib +h +s "%USERPROFILE%\.vc_secret"
 
-:: 2. Restrict access to your account only
+:: 3. Restrict access to your account only
 icacls "%USERPROFILE%\.vc_secret" /inheritance:r /grant "%USERNAME%:R" /grant "SYSTEM:F"
-
-:: 3. Encrypt using Windows EFS (tied to your login)
-cipher /e "%USERPROFILE%\.vc_secret"
 ```
 *The file remains readable by `run.bat` as long as it runs under your user account.*
 
@@ -90,6 +90,44 @@ sudo nano /root/.vc_secret
 sudo chmod 600 /root/.vc_secret
 ```
 The file is owned and readable only by root, which is the same user that runs the supervisor.
+
+---
+
+### Step 3b — Configure Fatal Notifications (Recommended)
+
+The normal Telegram/Email report requires secrets from the container to fire. If the run fails *before* the container is loaded — wrong password, missing container, Python error — you would get no notification at all and only discover the failure by checking logs manually.
+
+To close this gap, create a second minimal keyfile **outside the container** containing only your Telegram bot credentials. The supervisor reads this file directly if a pre-load failure occurs.
+
+#### 🪟 Windows
+Create `%USERPROFILE%\.vc_notify` (e.g. `C:\Users\YourName\.vc_notify`):
+```
+BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
+CHAT_ID=987654321
+```
+Then harden it the same way as `.vc_secret`:
+```cmd
+cipher /e "%USERPROFILE%\.vc_notify"
+attrib +h +s "%USERPROFILE%\.vc_notify"
+icacls "%USERPROFILE%\.vc_notify" /inheritance:r /grant "%USERNAME%:R" /grant "SYSTEM:F"
+```
+
+#### 🐧 Linux
+Create `/root/.vc_notify`:
+```bash
+sudo nano /root/.vc_notify
+```
+Contents:
+```
+BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
+CHAT_ID=987654321
+```
+Then restrict it:
+```bash
+sudo chmod 600 /root/.vc_notify
+```
+
+> ℹ️ This file is intentionally minimal — just two lines, one credential, one purpose. It does not replace or duplicate your main `.env`. If the file does not exist the supervisor continues silently, so this step is optional but strongly recommended for unattended scheduled runs.
 
 ---
 
@@ -264,6 +302,7 @@ Credentials are never written to the project directory. Instead, the Supervisor 
 *   **No temp files:** Credentials live exclusively in the shell process's memory for the duration of the run and vanish the moment the process exits.
 *   **Container unmounts first:** All folder links (junctions/symlinks) are removed and the container is dismounted before the report is sent — the secrets needed for notifications are already in RAM and require no further disk access.
 *   **Links:** Junctions and Symlinks are removed instantly on exit, leaving no path for a threat actor to reach the encrypted data.
+*   **Fatal notification blind spot covered:** Failures that occur *before* the `.env` is loaded (e.g. wrong password, container missing) cannot use the normal report channel. A separate minimal keyfile (`.vc_notify`) outside the container covers this gap — see Step 3b above.
 
 ---
 
@@ -431,7 +470,8 @@ ctrl_s_master/
 ├── 🔗 backups/                           # Junction (Win) / Symlink (Lin) into container.
 │
 │   — External —
-└── 🔑 ~/.vc_secret                       # Auto-unlocker keyfile (user home on both OSes).
+├── 🔑 ~/.vc_secret                       # Auto-unlocker keyfile (user home on both OSes).
+└── 🔑 ~/.vc_notify                       # Fatal pre-load notification credentials (Telegram only).
 ```
 
 ---
