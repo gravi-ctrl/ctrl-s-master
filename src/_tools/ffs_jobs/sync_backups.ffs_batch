@@ -24,6 +24,7 @@
             <Item>*\.stfolder\</Item>
             <Item>*\.stversions\</Item>
             <Item>\_pvt\</Item>
+            <Item>\self-hosted\docker-containers-backup\</Item>
         </Exclude>
         <SizeMin Unit="None">0</SizeMin>
         <SizeMax Unit="None">0</SizeMax>
