@@ -1,6 +1,8 @@
 # ctrl_s_master
 > *Named after the universal shortcut for saving: CTRL + S.*
 
+> **Mirror Status:** This repository is mirrored across [Codeberg](https://codeberg.org/gravi-ctrl/ctrl-s-master) (Primary) and [GitHub](https://github.com/gravi-ctrl/ctrl-s-master).
+
 A robust, automated suite for creating local archives of critical data from services like Bitwarden and Raindrop.io, and for syncing other key files (2FA codes, documentation, etc.). The entire process is orchestrated, encrypted, logged, and sends a notification upon completion or failure.
 
 The project runs on **both Windows and Linux** from a single shared codebase.
