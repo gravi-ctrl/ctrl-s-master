@@ -1,0 +1,24 @@
+# --- PYTHON GARBAGE ---
+**/venv/
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+
+# Ignore sensitive env files
+.env
+**/.env
+
+# --- LOGS & TEMP ---
+**/*.log
+**/*.tmp
+**/*.bak
+
+# ctrl_s_master
+**/_logs/
+**/_dry_run_output/
+**/vaults.hc
+**/vaults/
+**/2fa/
+**/backups/
+**/status_dashboard.md
+**/status.json
