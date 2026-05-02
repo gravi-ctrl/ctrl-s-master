@@ -1,0 +1,12 @@
+# ==========================================
+# WHAT IS THIS
+# ==========================================
+# Git auto-commit alert
+# ==========================================
+# This file triggers a warning when you cd into this folder (once per ssh session).
+# Any line starting with a # will be hidden.
+# Anything else below will be shown as a red warning.
+# The script itself is added in ~/.zshrc
+# ==========================================
+
+This directory auto-commits daily at 5am — gitignore secrets.
