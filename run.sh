@@ -12,8 +12,6 @@ SECRET_FILE="/root/.vc_secret"
 SECURE_FOLDERS=("vaults" "2fa" "backups")
 
 # Notify file: used ONLY for fatal pre-load failures (before .env is in RAM).
-# Contains two lines:  BOT_TOKEN=xxxxx  and  CHAT_ID=xxxxx
-# Intentionally minimal and stored separately from the container.
 NOTIFY_FILE="/root/.vc_notify"
 
 MODE="NORMAL"
