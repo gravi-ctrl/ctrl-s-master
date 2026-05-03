@@ -1,5 +1,5 @@
 # ctrl_s_master
-> *Named after the universal shortcut for saving: CTRL + S.*
+*Named after the universal shortcut for saving: CTRL + S.*
 
 > **Mirror Status:** This repository is mirrored across [Codeberg](https://codeberg.org/gravi-ctrl/ctrl-s-master) (Primary) and [GitHub](https://github.com/gravi-ctrl/ctrl-s-master).
 
