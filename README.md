@@ -1,3 +1,6 @@
+![Static Badge](https://img.shields.io/badge/https%3A%2F%2Fimg.shields.io%2Fbadge%2Flicense-MIT-green?label=License)
+![Static Badge](https://img.shields.io/badge/https%3A%2F%2Fimg.shields.io%2Fbadge%2Fplatform-Linux%20%7C%20Windows-blue?label=Platform)
+
 # ctrl_s_master
 *Named after the universal shortcut for saving: CTRL + S.*
 
