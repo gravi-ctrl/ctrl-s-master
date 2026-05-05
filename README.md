@@ -1,7 +1,7 @@
 ![Static Badge](https://img.shields.io/badge/https%3A%2F%2Fimg.shields.io%2Fbadge%2Flicense-MIT-green?label=License)
 ![Static Badge](https://img.shields.io/badge/https%3A%2F%2Fimg.shields.io%2Fbadge%2Fplatform-Linux%20%7C%20Windows-blue?label=Platform)
 
-# ctrl_s_master
+# ctrl-s-master
 *Named after the universal shortcut for saving: CTRL + S.*
 
 > **Mirror Status:** This repository is mirrored across [Codeberg](https://codeberg.org/gravi-ctrl/ctrl-s-master) (Primary) and [GitHub](https://github.com/gravi-ctrl/ctrl-s-master).
@@ -25,8 +25,8 @@ This system uses a **Supervisor & Engine** model designed to keep your data secu
 | Supervisor | `run.bat` | `run.sh` |
 | Directory Links | NTFS Junctions (`mklink /J`) | Symlinks (`ln -sfn`) |
 | File Sync | FreeFileSync (`.ffs_batch` files) | rsync (`.json` files) |
-| Notifications | Email (SMTP) | Telegram |
 | Fail-Safe | Pre-run cleanup & GOTO traps | Native `trap` signals |
+| Notifications | Email (SMTP) | Telegram |
 
 > Both channels can be active simultaneously if both are configured in `.env`.
 
