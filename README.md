@@ -491,7 +491,7 @@ This project was created and is maintained by myself - [gravi-ctrl](https://gith
 This repository is primary-hosted on **Codeberg** and mirrored to **GitHub**. To maintain synchronicity with a single `git push`, the local `origin` is configured with multiple push URLs.
 
 ### Setup Dual-Push (Optional)
-If you are contributing or mirroring this setup:
+
 ```bash
 # Set the primary push URL (Codeberg)
 git remote set-url --add --push origin git@codeberg.org:gravi-ctrl/ctrl-s-master.git
@@ -501,3 +501,4 @@ git remote set-url --add --push origin git@github.com:gravi-ctrl/ctrl-s-master.g
 
 # Verify configuration
 git remote -v
+```
