@@ -1,5 +1,5 @@
 # dependencies:
-# pip install cryptography argon2-cffi 
+# pip install cryptography argon2-cffi
 
 # usage:
 # python json-decryptor.py encrypted.json --write decrypted.json
