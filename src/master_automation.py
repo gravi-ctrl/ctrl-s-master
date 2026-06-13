@@ -42,9 +42,6 @@ STATUS_DASHBOARD_FILE = Path(os.getenv("STATUS_DASHBOARD_FILE", str(ROOT_DIR / '
 FAILURE_LOG_FILE      = LOGS_DIR / "failure_details.log"
 
 # ── Config ────────────────────────────────────────────────────────────────────
-KDBX_PERSONAL_PASSWORD      = os.getenv("KDBX_PERSONAL_PASSWORD")
-KDBX_WORK_PASSWORD          = os.getenv("KDBX_WORK_PASSWORD")
-
 BW_EXPORT_SCRIPT_PATH       = ROOT_DIR / os.getenv("BW_EXPORT_SCRIPT_PATH",       "src/_tools/bitwarden_exporter.py")
 RAINDROP_BACKUP_SCRIPT_PATH = ROOT_DIR / os.getenv("RAINDROP_BACKUP_SCRIPT_PATH", "src/_tools/raindrop_backup.py")
 
@@ -179,52 +176,6 @@ def export_work(dry_run=False):
         return "FAILURE", "Missing BITWARDEN_WORK_PASSWORD"
     success, out = run_command([BW_EXPORT_SCRIPT_PATH, 'work'], is_python_script=True)
     return "SUCCESS" if success else "FAILURE", out
-
-def convert_json_to_kdbx(dry_run=False):
-    print("\n" + "="*70); print("--- Task: Converting New JSON to KDBX ---")
-    converter_script = TOOLS_DIR / 'convert-to-kdbx.py'
-
-    vaults_dir_override = os.getenv("DRY_RUN_VAULTS_DIR")
-    json_dir = (Path(vaults_dir_override) if vaults_dir_override else VAULTS_DIR) / 'json'
-    
-    if not json_dir.exists(): 
-        print("SKIP: JSON directory does not exist. Nothing to convert.")
-        return "SKIPPED", ""
-
-    json_files = list(json_dir.glob('*.json'))
-    if not json_files: 
-        print("SKIP: No JSON files found. Nothing to convert.")
-        return "SKIPPED", ""
-
-    all_success = True; final_output = ""
-
-    for json_file in json_files:
-        if 'personal' in json_file.name.lower():
-            pwd = KDBX_PERSONAL_PASSWORD
-            if not pwd:
-                all_success = False
-                final_output += f"\n[File: {json_file.name}]\nMissing KDBX_PERSONAL_PASSWORD in .env\n"
-                continue
-            os.environ["KDBX_PASSWORD_OVERRIDE"] = pwd
-            
-        elif 'work' in json_file.name.lower():
-            pwd = KDBX_WORK_PASSWORD
-            if not pwd:
-                all_success = False
-                final_output += f"\n[File: {json_file.name}]\nMissing KDBX_WORK_PASSWORD in .env\n"
-                continue
-            os.environ["KDBX_PASSWORD_OVERRIDE"] = pwd
-        else:
-            continue
-
-        success, output = run_command([converter_script, str(json_file)], is_python_script=True)
-        os.environ.pop("KDBX_PASSWORD_OVERRIDE", None)
-        if not success:
-            all_success = False
-            final_output += f"\n[File: {json_file.name}]\n{output}\n"
-
-    return "SUCCESS" if all_success else "FAILURE", final_output if not all_success else ""
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Tasks — Sync: Linux (rsync, auto-discovered)
@@ -592,7 +543,6 @@ def main():
         'raindrop-work':     raindrop_work,
         'export-personal':   export_personal,
         'export-work':       export_work,
-        'convert-kdbx':      convert_json_to_kdbx,
     }
 
     # ── Sync tasks: platform-specific discovery ───────────────────────────────

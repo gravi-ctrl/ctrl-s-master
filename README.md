@@ -18,7 +18,7 @@ This system uses a **Supervisor & Engine** model designed to keep your data secu
 
 1. **The Vault:** A VeraCrypt container (`vaults.hc`) acts as the secure, encrypted destination for all outputs.
 2. **The Supervisor (`run.bat` / `run.sh`):** Handles the physical security layer. It mounts the encrypted container, establishes secure directory links, injects the hidden `.env` secrets, runs the engine, backs up the `.hc` file to your sync folder, and immediately unmounts/locks the container upon completion.
-3. **The Engine (`master_automation.py`):** A Python application that orchestrates API calls, cryptographic conversions (JSON → KDBX), and file sync operations.
+3. **The Engine (`master_automation.py`):** A Python application that orchestrates API calls, exports, and file sync operations.
 
 | Layer | Windows | Linux |
 | :--- | :--- | :--- |
@@ -42,7 +42,6 @@ This system uses a **Supervisor & Engine** model designed to keep your data secu
 | Python | Core runtime | [python.org](https://www.python.org/downloads/) |
 | VeraCrypt | Encrypted container | [veracrypt.fr](https://www.veracrypt.fr/en/Downloads.html) |
 | FreeFileSync | File syncing | [freefilesync.org](https://freefilesync.org/download.php) |
-| KeePassXC | Viewing `.kdbx` vaults | [keepassxc.org](https://keepassxc.org/download/) |
 | Chocolatey | Tool Management | [chocolatey.org](https://chocolatey.org/install) |
 
 #### 🐧 Linux (Ubuntu/Debian)
@@ -145,8 +144,6 @@ This is a one-time step. You must create the required folder skeleton inside the
 2. Open the `Z:` drive and create these folders:
    ```
    Z:\vaults\
-   Z:\vaults\json\
-   Z:\vaults\kdbx\
    Z:\2fa\
    Z:\backups\
    ```
@@ -160,8 +157,7 @@ sudo mkdir -p /mnt/secure_vaults
 sudo veracrypt --text --pim=0 --keyfiles="" --protect-hidden=no ./vaults.hc /mnt/secure_vaults
 
 # 2. Create the skeleton
-sudo mkdir -p /mnt/secure_vaults/vaults/json \
-              /mnt/secure_vaults/vaults/kdbx \
+sudo mkdir -p /mnt/secure_vaults/vaults \
               /mnt/secure_vaults/2fa \
               /mnt/secure_vaults/backups
 
@@ -293,8 +289,7 @@ TELEGRAM_CHAT_ID=987654321
 
 | Variable | Purpose |
 | :--- | :--- |
-| `BITWARDEN_*_PASSWORD` | Password to encrypt the intermediate JSON export files. Choose anything — this is not your Bitwarden master password. |
-| `KDBX_*_PASSWORD` | Password you'll use to open the final `.kdbx` file in KeePassXC. |
+| `BITWARDEN_*_PASSWORD` | Password to encrypt the exported JSON files. Choose anything — this is not your Bitwarden master password. |
 | `FFS_PATH` | **Windows only.** Path to `FreeFileSync.exe`. Can be relative to project root or absolute. |
 | `BW_CLI_PATH` | Set to `bw` or a custom path if needed. |
 
@@ -458,7 +453,6 @@ ctrl_s_master/
 │       ├── 📁 ffs_jobs/                  # Drop Windows FreeFileSync batch jobs here.
 │       ├── 📁 rsync_jobs/                # Drop Linux rsync JSON config files here.
 │       ├── bitwarden_exporter.py         # Exports Bitwarden vaults via API.
-│       ├── convert-to-kdbx.py            # Decrypts JSON exports → KeePass .kdbx.
 │       ├── raindrop_backup.py            # Downloads and archives Raindrop bookmarks.
 │       └── common_utils.py               # Shared helpers (backup rotation, etc.).
 │
@@ -488,8 +482,16 @@ This project was created and is maintained by myself - [gravi-ctrl](https://gith
 
 ## 🔄 Mirroring Workflow
 
+This repository is primary-hosted on **Codeberg** and mirrored to **GitHub**. To maintain synchronicity with a single `git push`, the local `origin` is configured with multiple push URLs.
+
+### Setup Dual-Push (Optional)
+If you are contributing or mirroring this setup:
 ```bash
+# Set the primary push URL (Codeberg)
 git remote set-url --add --push origin git@codeberg.org:gravi-ctrl/ctrl-s-master.git
+
+# Add the mirror push URL (GitHub)
 git remote set-url --add --push origin git@github.com:gravi-ctrl/ctrl-s-master.git
+
+# Verify configuration
 git remote -v
-```

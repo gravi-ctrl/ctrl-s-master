@@ -37,7 +37,7 @@ def determine_output_path(root_path: Path, vault_type: str):
     else:
         vaults_dir = root_path / os.getenv("BW_VAULTS_DIR", "vaults")
 
-    output_dir = vaults_dir / "json"
+    output_dir = vaults_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 
     base_filename, ext = os.path.splitext(os.getenv(f"{prefix}OUTPUT_FILENAME"))
