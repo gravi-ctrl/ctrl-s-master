@@ -93,6 +93,14 @@ if __name__ == '__main__':
     input_filename = sys.argv[1]
     output_filename = "decrypted.json"
 
+    if "--write" in sys.argv:
+        idx = sys.argv.index("--write")
+        if idx + 1 < len(sys.argv):
+            output_filename = sys.argv[idx + 1]
+        else:
+            print("ERROR: --write requires a filename argument!")
+            sys.exit(1)
+
     with open(input_filename, 'r', encoding="utf-8") as f:
         data = json.load(f)
 
