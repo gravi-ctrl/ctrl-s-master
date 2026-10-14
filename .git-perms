@@ -2,6 +2,7 @@
 600	@USER:@GROUP	.env.example
 644	@USER:@GROUP	.gitattributes
 644	@USER:@GROUP	.gitignore
+600	@USER:@GROUP	.git-perms
 644	@USER:@GROUP	LICENSE
 644	@USER:@GROUP	README.md
 644	@USER:@GROUP	requirements.txt
