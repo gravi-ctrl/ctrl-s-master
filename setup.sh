@@ -38,12 +38,12 @@ echo "$LOG_FILE"
     echo "========================================"
 
     # --- 1. Install System Dependencies ---
-    echo "[1/5] Checking System Prerequisites..."
+    echo "[1/6] Checking System Prerequisites..."
     sudo apt-get update -y
-    sudo apt-get install -y software-properties-common coreutils python3-venv python3-pip unzip rsync curl dos2unix
+    sudo apt-get install -y software-properties-common coreutils python3-venv python3-pip unzip rsync curl dos2unix rclone
 
     # --- 2. Install VeraCrypt ---
-    echo "[2/5] Checking VeraCrypt..."
+    echo "[2/6] Checking VeraCrypt..."
     if ! command -v veracrypt &> /dev/null; then
         echo "      - VeraCrypt not found. Adding PPA and installing..."
         sudo add-apt-repository ppa:unit193/encryption -y
@@ -54,7 +54,7 @@ echo "$LOG_FILE"
     fi
 
     # --- 3. Install/Update Bitwarden CLI ---
-    echo "[3/5] Checking Bitwarden CLI..."
+    echo "[3/6] Checking Bitwarden CLI..."
     if ! command -v bw &> /dev/null || [ $FORCE_REBUILD -eq 1 ]; then
         if [ $FORCE_REBUILD -eq 1 ]; then
             echo "      - Force update triggered. Downloading latest 'bw'..."
@@ -71,9 +71,18 @@ echo "$LOG_FILE"
     else
         echo "      - 'bw' is already installed at $(which bw)."
     fi
+	
+	# --- 4. Install/Update rclone ---
+    echo "[4/6] Checking rclone..."
+    if ! command -v rclone &> /dev/null || [ $FORCE_REBUILD -eq 1 ]; then
+        sudo apt-get install -y --only-upgrade rclone 2>/dev/null || sudo apt-get install -y rclone
+        echo "      - rclone installed/updated successfully."
+    else
+        echo "      - rclone is already installed at $(which rclone)."
+    fi
 
-    # --- 4. Virtual Environment ---
-    echo "[4/5] Setting up Python Virtual Environment..."
+    # --- 5. Virtual Environment ---
+    echo "[5/6] Setting up Python Virtual Environment..."
     if [ $FORCE_REBUILD -eq 1 ] && [ -d "$VENV_DIR" ]; then
         echo "      - Force rebuild triggered. Removing existing venv..."
         rm -rf "$VENV_DIR"
@@ -89,8 +98,8 @@ echo "$LOG_FILE"
         echo "      - Valid venv already exists."
     fi
 
-    # --- 5. Python Libraries ---
-    echo "[5/5] Syncing Python Requirements..."
+    # --- 6. Python Libraries ---
+    echo "[6/6] Syncing Python Requirements..."
     source "$VENV_DIR/bin/activate"
     pip install --upgrade pip
     pip install --upgrade -r "$PROJECT_DIR/requirements.txt"

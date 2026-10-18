@@ -138,7 +138,7 @@ for %%F in (%SECURE_FOLDERS%) do ( rmdir /q "%SCRIPT_DIR%%%F" 2>nul )
 :: --- 6. BACKUP CONTAINER ---
 set "FINAL_EXIT_CODE=!PYTHON_EXIT_CODE!"
 if !PYTHON_EXIT_CODE! equ 0 (
-    echo Starting Container Backup... >> "%LOG_FILE%"
+    echo Starting Local Container Backup... >> "%LOG_FILE%"
     if exist "%BACKUP_DEST%\" (
         copy /y "%VC_CONTAINER%" "%BACKUP_DEST%\%BACKUP_FILENAME%" >> "%LOG_FILE%" 2>&1
         if !errorlevel! equ 0 (
@@ -154,6 +154,10 @@ if !PYTHON_EXIT_CODE! equ 0 (
         echo ERROR: Backup destination not found: %BACKUP_DEST% >> "%LOG_FILE%"
         set "FINAL_EXIT_CODE=1"
     )
+
+    :: --- Offsite Backup (Backblaze B2 via rclone) ---
+    echo Starting Offsite Container Backup... >> "%LOG_FILE%"
+    "%PYTHON_EXE%" "%MASTER_SCRIPT%" backup-b2 >> "%LOG_FILE%" 2>&1
 ) else (
     echo Skipping Container Backup because Python tasks failed. >> "%LOG_FILE%"
 )

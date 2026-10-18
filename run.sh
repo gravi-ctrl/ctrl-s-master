@@ -150,12 +150,16 @@ FINAL_EXIT_CODE=$PYTHON_EXIT_CODE
 
 if [ "$MODE" == "NORMAL" ]; then
     if [ $PYTHON_EXIT_CODE -eq 0 ]; then
-        echo "Starting Container Backup..." >> "$LOG_FILE"
+        echo "Starting Local Container Backup..." >> "$LOG_FILE"
         if [ -d "$BACKUP_DEST" ]; then
             find "$BACKUP_DEST" -maxdepth 1 -name "ctrl_s_master_*.hc" -type f -not -name "$BACKUP_FILENAME" -delete
             cp "$VC_CONTAINER" "$BACKUP_DEST/$BACKUP_FILENAME"
             [ $? -eq 0 ] || FINAL_EXIT_CODE=1
         fi
+
+        # --- Offsite Backup (Backblaze B2 via rclone) ---
+        echo "Starting Offsite Container Backup..." >> "$LOG_FILE"
+        python3 "$PROJECT_DIR/src/master_automation.py" backup-b2 >> "$LOG_FILE" 2>&1
     fi
 fi
 

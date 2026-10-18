@@ -23,6 +23,8 @@ This system uses a **Supervisor & Engine** model designed to keep your data secu
 | Layer | Windows | Linux |
 | :--- | :--- | :--- |
 | Supervisor | `run.bat` | `run.sh` |
+| Local Backup | Copy to `BACKUP_DEST` | Copy to `BACKUP_DEST` |
+| Offsite Backup | Backblaze B2 (`rclone` in RAM) | Backblaze B2 (`rclone` in RAM) |
 | Directory Links | NTFS Junctions (`mklink /J`) | Symlinks (`ln -sfn`) |
 | File Sync | FreeFileSync (`.ffs_batch` files) | rsync (`.json` files) |
 | Fail-Safe | Pre-run cleanup & GOTO traps | Native `trap` signals |
@@ -43,6 +45,7 @@ This system uses a **Supervisor & Engine** model designed to keep your data secu
 | VeraCrypt | Encrypted container | [veracrypt.fr](https://www.veracrypt.fr/en/Downloads.html) |
 | FreeFileSync | File syncing | [freefilesync.org](https://freefilesync.org/download.php) |
 | Chocolatey | Tool Management | [chocolatey.org](https://chocolatey.org/install) |
+| rclone | Cloud Backup | Installed via `setup.bat` and `setup.sh` |
 
 #### 🐧 Linux (Ubuntu/Debian)
 - Root/sudo access is required for mounting.
@@ -303,6 +306,7 @@ Credentials are never written to the project directory. Instead, the Supervisor 
 *   **Container unmounts first:** All folder links (junctions/symlinks) are removed and the container is dismounted before the report is sent — the secrets needed for notifications are already in RAM and require no further disk access.
 *   **Links:** Junctions and Symlinks are removed instantly on exit, leaving no path for a threat actor to reach the encrypted data.
 *   **Fatal notification blind spot covered:** Failures that occur *before* the `.env` is loaded (e.g. wrong password, container missing) cannot use the normal report channel. A separate minimal keyfile (`.vc_notify`) outside the container covers this gap — see Step 3b above.
+* **Zero-Disk Offsite Credentials:** Backblaze B2 integration uses in-memory environment variables (`RCLONE_CONFIG_B2_*`). No `rclone.conf` or plain-text access keys are ever created or stored on the physical drive.
 
 ---
 

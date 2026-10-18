@@ -63,8 +63,8 @@ echo [INFO] Updating pip and dependencies... >> "%LOG_FILE%" 2>&1
 (%PIP_CMD% install --upgrade pip) >> "%LOG_FILE%" 2>&1
 (%PIP_CMD% install -r "%REQUIREMENTS_FILE%" --upgrade) >> "%LOG_FILE%" 2>&1
 
-:: --- Step 5: System Bitwarden CLI (Chocolatey) ---
-echo [INFO] Syncing system Bitwarden CLI via Chocolatey... >> "%LOG_FILE%" 2>&1
+:: --- Step 5: System Bitwarden CLI & rclone (Chocolatey) ---
+echo [INFO] Syncing system CLI tools via Chocolatey... >> "%LOG_FILE%" 2>&1
 where choco >nul 2>nul
 if !errorlevel! neq 0 (
     echo [FATAL] Chocolatey is not installed or not on PATH! >> "%LOG_FILE%" 2>&1
@@ -74,6 +74,7 @@ if !errorlevel! neq 0 (
 
 :: choco upgrade handles both initial install and updates
 (choco upgrade bitwarden-cli -y) >> "%LOG_FILE%" 2>&1
+(choco upgrade rclone -y) >> "%LOG_FILE%" 2>&1
 
 (
     echo.

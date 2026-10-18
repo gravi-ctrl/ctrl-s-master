@@ -81,7 +81,7 @@ else:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _check_env_vars(required_vars: list[str]) -> bool:
-    missing =[v for v in required_vars if not globals().get(v) and not os.getenv(v)]
+    missing = [v for v in required_vars if not globals().get(v) and not os.getenv(v)]
     if missing:
         print(f"FATAL ERROR: Required variables missing from .env file: {', '.join(missing)}")
         return False
@@ -90,10 +90,10 @@ def _check_env_vars(required_vars: list[str]) -> bool:
 
 def run_command(command_list, is_python_script=False, working_dir=None):
     if is_python_script:
-        full_cmd_list =[str(_VENV_PYTHON)] +[str(x) for x in command_list]
+        full_cmd_list = [str(_VENV_PYTHON)] + [str(x) for x in command_list]
         print(f"--- Executing Python Script: {Path(command_list[0]).name} ---")
     else:
-        full_cmd_list =[str(x) for x in command_list]
+        full_cmd_list = [str(x) for x in command_list]
         print(f"--- Executing: {' '.join(full_cmd_list)} ---")
 
     env = os.environ.copy()
@@ -192,7 +192,7 @@ def run_rsync_sync(source, dest, task_name, dry_run=False, excludes=None):
     print(f"Syncing FROM: {source}")
     print(f"Syncing TO:   {dest}")
 
-    cmd =["rsync", "-rltDv", "--delete"]
+    cmd = ["rsync", "-rltDv", "--delete"]
     if dry_run: cmd.append("--dry-run")
     if excludes:
         for item in excludes:
@@ -204,7 +204,7 @@ def run_rsync_sync(source, dest, task_name, dry_run=False, excludes=None):
 def _make_rsync_task(job_file: Path):
     def rsync_task(dry_run=False):
         print("\n" + "="*70)
-        print(f"--- Task: Rsync Job[{job_file.stem}] ---")
+        print(f"--- Task: Rsync Job [{job_file.stem}] ---")
         
         try:
             with open(job_file, 'r', encoding='utf-8') as f:
@@ -219,7 +219,7 @@ def _make_rsync_task(job_file: Path):
         
         source = os.path.expandvars(raw_source)
         dest   = os.path.expandvars(raw_dest)
-        excludes = config.get("excludes",[])
+        excludes = config.get("excludes", [])
 
         if not source or (source == raw_source and raw_source.startswith('$')):
             return "FAILURE", f"Source path missing or environment variable unresolved: {raw_source}"
@@ -299,6 +299,113 @@ def _discover_ffs_tasks() -> dict:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+#  Offsite Backup — Backblaze B2 (rclone in-memory)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _record_offsite_status(status: str, detail: str, duration: float = 0.0):
+    try:
+        if STATUS_FILE.exists():
+            with open(STATUS_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        else:
+            data = {"run_history": [{}]}
+
+        if data.get("run_history"):
+            data["run_history"][0]["offsite_backup"] = {
+                "status": status,
+                "detail": detail,
+                "duration": duration
+            }
+            with open(STATUS_FILE, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=4)
+        update_status_dashboard_md()
+    except Exception as e:
+        print(f"Could not record offsite status: {e}")
+
+
+def backup_b2() -> bool:
+    print("\n" + "="*70)
+    print("--- Task: Offsite Backup to Backblaze B2 ---")
+
+    key_id = os.getenv("B2_APPLICATION_KEY_ID") or os.getenv("B2_ACCOUNT_ID")
+    app_key = os.getenv("B2_APPLICATION_KEY") or os.getenv("B2_KEY")
+    bucket = os.getenv("B2_BUCKET")
+    keep_days = os.getenv("B2_KEEP_DAYS", "30d")
+
+    # 1. Defensive Check: Credentials in .env
+    if not all([key_id, app_key, bucket]):
+        msg = "Skipped: B2 credentials not configured in .env"
+        print(f"ℹ️  {msg}")
+        _record_offsite_status("SKIPPED", msg)
+        return True
+
+    # 2. Defensive Check: rclone binary installed
+    rclone_bin = shutil.which("rclone")
+    if not rclone_bin:
+        msg = "Skipped: 'rclone' executable not found on system PATH"
+        print(f"⚠️  {msg}")
+        _record_offsite_status("WARNING", msg)
+        return True
+
+    vc_container = ROOT_DIR / "vaults.hc"
+    if not vc_container.exists():
+        msg = f"Failed: Container file not found ({vc_container})"
+        print(f"❌ {msg}")
+        _record_offsite_status("FAILURE", msg)
+        return False
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    dest_filename = f"ctrl_s_master_{today}.hc"
+
+    # 3. In-Memory Zero-Disk Configuration
+    rclone_env = os.environ.copy()
+    rclone_env["RCLONE_CONFIG_B2_TYPE"] = "b2"
+    rclone_env["RCLONE_CONFIG_B2_ACCOUNT"] = key_id.strip()
+    rclone_env["RCLONE_CONFIG_B2_KEY"] = app_key.strip()
+
+    t_start = time.time()
+    print(f"☁️  Uploading {vc_container.name} to b2:{bucket}/{dest_filename}...")
+
+    try:
+        res = subprocess.run(
+            [rclone_bin, "copyto", str(vc_container), f"b2:{bucket}/{dest_filename}"],
+            env=rclone_env,
+            capture_output=True,
+            text=True,
+            timeout=1800
+        )
+        duration = round(time.time() - t_start, 2)
+
+        if res.returncode != 0:
+            err = res.stderr.strip() or res.stdout.strip() or "Unknown rclone error"
+            print(f"❌ Upload failed: {err}")
+            _record_offsite_status("FAILURE", f"Upload failed ({duration}s): {err}")
+            return False
+
+        print(f"✅ Upload successful ({duration}s).")
+
+        # 4. Prune older cloud backups
+        if keep_days:
+            print(f"🧹 Pruning cloud backups older than {keep_days}...")
+            subprocess.run(
+                [rclone_bin, "delete", f"--min-age={keep_days}", f"b2:{bucket}"],
+                env=rclone_env,
+                capture_output=True,
+                text=True,
+                timeout=300
+            )
+
+        size_mb = round(vc_container.stat().st_size / (1024 * 1024), 1)
+        _record_offsite_status("SUCCESS", f"Uploaded {size_mb} MB in {duration}s to b2:{bucket}", duration=duration)
+        return True
+
+    except Exception as e:
+        print(f"❌ Offsite backup exception: {e}")
+        _record_offsite_status("FAILURE", f"Exception: {e}")
+        return False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 #  Reporting — Telegram
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -320,6 +427,22 @@ def _build_report_text(job_succeeded: bool) -> str:
                 for name, det in tasks.items():
                     t_icon = "✅" if det.get("status") == "SUCCESS" else "❌"
                     message_text += f"\n  {t_icon} {name} ({det.get('duration', '?')}s)"
+
+            # ── Append Offsite Backup Status ───────────────────────
+            offsite = last_run.get("offsite_backup")
+            if offsite:
+                o_status = offsite.get("status", "SKIPPED")
+                o_detail = offsite.get("detail", "")
+                if o_status == "SUCCESS":
+                    o_icon = "☁️✅"
+                elif o_status == "FAILURE":
+                    o_icon = "☁️❌"
+                elif o_status == "WARNING":
+                    o_icon = "☁️⚠️"
+                else:
+                    o_icon = "☁️ℹ️"
+                message_text += f"\n\n<b>Offsite Backup (B2):</b>\n  {o_icon} {o_detail}"
+
         except Exception as e:
             message_text += f"\n(Could not read status file: {e})"
 
@@ -359,7 +482,7 @@ def send_telegram_report(job_succeeded: bool, generate_log_only=False):
         except Exception as e:
             print(f"Telegram Connection Error: {e}")
 
-    files_to_send =[]
+    files_to_send = []
     if STATUS_DASHBOARD_FILE.exists():
         files_to_send.append(STATUS_DASHBOARD_FILE)
     log_patterns = os.getenv("EMAIL_ATTACH_LOGS", "")
@@ -414,7 +537,7 @@ def send_email_report(job_succeeded: bool, generate_log_only=False):
     msg['Subject'] = subject
     msg.attach(MIMEText(plain_body, 'plain', 'utf-8'))
 
-    files_to_attach =[]
+    files_to_attach = []
     if STATUS_DASHBOARD_FILE.exists():
         files_to_attach.append(STATUS_DASHBOARD_FILE)
     log_patterns = os.getenv("EMAIL_ATTACH_LOGS", "")
@@ -487,14 +610,14 @@ def update_status_json(start, end, success, task_results):
     try:
         if STATUS_FILE.exists():
             with open(STATUS_FILE, 'r') as f: status_data = json.load(f)
-        else: status_data = {"run_history":[]}
+        else: status_data = {"run_history": []}
     except: status_data = {"run_history": []}
 
     status_data['last_run_status'] = run_summary['run_status']
     if success: status_data['last_success_timestamp'] = run_summary['end_timestamp']
     else:       status_data['last_failure_timestamp'] = run_summary['end_timestamp']
 
-    status_data["run_history"] =[run_summary] + status_data.get("run_history", [])[:9]
+    status_data["run_history"] = [run_summary] + status_data.get("run_history", [])[:9]
     with open(STATUS_FILE, 'w') as f: json.dump(status_data, f, indent=4)
 
 
@@ -512,8 +635,17 @@ def update_status_dashboard_md():
     ts = status_data.get('last_success_timestamp')
     md_content.append(f"- **Last Successful Run:** {datetime.fromisoformat(ts).strftime('%Y-%m-%d %H:%M:%S') if ts else 'N/A'}")
 
+    # Add Offsite Backup summary to top of dashboard if present
+    last_run = status_data.get("run_history", [{}])[0] if status_data.get("run_history") else {}
+    offsite = last_run.get("offsite_backup")
+    if offsite:
+        o_status = offsite.get("status", "SKIPPED")
+        o_detail = offsite.get("detail", "")
+        o_icon = "✅" if o_status == "SUCCESS" else ("⚠️" if o_status in ("SKIPPED", "WARNING") else "❌")
+        md_content.append(f"- **Offsite Backup (B2):** {o_icon} {o_detail}")
+
     md_content.append("\n---\n## Run History\n")
-    for run in status_data.get('run_history',[]):
+    for run in status_data.get('run_history', []):
         start_raw = run.get('start_timestamp') or run.get('start')
         end_raw   = run.get('end_timestamp')   or run.get('end')
         start_str = datetime.fromisoformat(start_raw).strftime('%Y-%m-%d %H:%M:%S') if start_raw else "N/A"
@@ -562,6 +694,9 @@ def main():
     report_parser.add_argument('status', choices=['success', 'failure'])
     report_parser.add_argument('--generate-log-only', action='store_true')
 
+    # Subcommand for Offsite Container Backup
+    subparsers.add_parser('backup-b2')
+
     args = parser.parse_args()
 
     if args.command == 'run-tasks':
@@ -589,7 +724,7 @@ def main():
             print(f"\n### Starting Task: {task_func.__name__}")
             t_start = time.time()
             
-            # Tasks now return strings: "SUCCESS", "FAILURE", or "SKIPPED"
+            # Tasks return strings: "SUCCESS", "FAILURE", or "SKIPPED"
             status, output = task_func(dry_run=args.dry_run)
             
             # If the task is skipped, do NOT add it to the dashboard report
@@ -620,6 +755,10 @@ def main():
             shutil.rmtree(ROOT_DIR / "_dry_run_output")
 
         sys.exit(0 if overall_success else 1)
+
+    elif args.command == 'backup-b2':
+        success = backup_b2()
+        sys.exit(0 if success else 1)
 
     elif args.command == 'send-report':
         send_report(args.status == 'success', generate_log_only=args.generate_log_only)
