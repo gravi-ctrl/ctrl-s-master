@@ -2,6 +2,7 @@
 import os
 from pathlib import Path
 
+
 def rotate_backups(directory: Path, glob_pattern: str, max_to_keep: int):
     """
     Finds, sorts by modification time, and deletes old backups.

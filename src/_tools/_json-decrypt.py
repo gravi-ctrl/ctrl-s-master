@@ -12,14 +12,19 @@
 
 
 
-import json, base64, sys, getpass
+import base64
+import getpass
+import json
+import sys
+
 try:
-    from cryptography.hazmat.backends import default_backend
-    from cryptography.hazmat.primitives import ciphers, hashes, hmac, padding
-    from cryptography.hazmat.primitives.ciphers import algorithms, Cipher, modes
-    from cryptography.hazmat.primitives.kdf.hkdf import HKDFExpand
     import shutil
     from pathlib import Path
+
+    from cryptography.hazmat.backends import default_backend
+    from cryptography.hazmat.primitives import ciphers, hashes, hmac, padding
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDFExpand
     from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 except ModuleNotFoundError:
     print("ERROR: package 'cryptography' required! (pip install cryptography)")

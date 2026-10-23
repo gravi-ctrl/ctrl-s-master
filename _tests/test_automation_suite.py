@@ -17,8 +17,6 @@ Design notes
 """
 
 import json
-import os
-import platform
 import shutil
 import subprocess
 import sys
@@ -35,8 +33,7 @@ TESTS_DIR = ROOT_DIR / "_tests"
 
 # Add src/_tools to path so common_utils can be imported directly.
 sys.path.insert(0, str(ROOT_DIR / "src" / "_tools"))
-from common_utils import rotate_backups  # noqa: E402
-
+from common_utils import rotate_backups
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 

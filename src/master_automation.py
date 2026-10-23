@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
-import os
-import sys
-import platform
-import subprocess
 import argparse
-import json
-import time
 import html
+import json
+import os
+import platform
 import shutil
 import smtplib
-import requests
+import subprocess
+import sys
+import time
+from datetime import datetime
+from email import encoders
+from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
 from pathlib import Path
+
+import requests
 from dotenv import load_dotenv
-from datetime import datetime
 
 # ── OS Detection ──────────────────────────────────────────────────────────────
 IS_WINDOWS = platform.system() == "Windows"

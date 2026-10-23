@@ -9,14 +9,14 @@
 import argparse
 import base64
 import getpass
-import io
 import json
 import sys
 
+import cryptography
+from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
-from cryptography.hazmat.backends import default_backend
-import cryptography
+
 backend = default_backend()
 
 def die(msg, code=1):
@@ -30,7 +30,7 @@ def main():
     args = parser.parse_args()
 
     # parse the Aegis vault file
-    with io.open(args.input, "r") as f:
+    with open(args.input, "r") as f:
         data = json.load(f)
 
     # ask the user for a password
@@ -84,7 +84,7 @@ def main():
 
     db = db.decode("utf-8")
     if args.output != "-":
-        with io.open(args.output, "w") as f:
+        with open(args.output, "w") as f:
             f.write(db)
     else:
         print(db)

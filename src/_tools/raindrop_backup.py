@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
-import os
-import requests
-import json
 import csv
 import html
+import json
+import os
 import sys
 import zipfile
 from datetime import datetime
-from dotenv import load_dotenv
 from pathlib import Path
+
+import requests
+from dotenv import load_dotenv
 
 # common_utils.py lives in the same directory as this script (src/_tools/)
 sys.path.append(str(Path(__file__).resolve().parent))
 from common_utils import rotate_backups
+
 
 def load_master_env():
     root_path_str = os.getenv("AUTOMATION_ROOT")
@@ -112,7 +114,7 @@ def save_as_json(bookmarks, filepath: Path):
         with filepath.open('w', encoding='utf-8') as f:
             json.dump(bookmarks, f, indent=2, ensure_ascii=False)
         print("OK: Successfully saved JSON file.")
-    except IOError as e:
+    except OSError as e:
         print(f"ERROR: Error saving JSON file: {e}")
 
 def save_as_csv(bookmarks, filepath: Path, collection_map):
@@ -129,7 +131,7 @@ def save_as_csv(bookmarks, filepath: Path, collection_map):
                     item.get('excerpt', ''), item.get('note', '')
                 ])
         print("OK: Successfully saved CSV file.")
-    except IOError as e:
+    except OSError as e:
         print(f"ERROR: Error saving CSV file: {e}")
 
 def save_as_html(bookmarks, filepath: Path, account_name, collection_map):
@@ -164,7 +166,7 @@ def save_as_html(bookmarks, filepath: Path, account_name, collection_map):
                 f.write('</li>\n')
             f.write("</ul>\n" + html_footer)
         print("OK: Successfully saved HTML file.")
-    except IOError as e:
+    except OSError as e:
         print(f"ERROR: Error saving HTML file: {e}")
 
 def process_account_backup(account_config, config):
@@ -218,7 +220,7 @@ def process_account_backup(account_config, config):
         print("Cleaning up individual backup files...")
         for file in files_to_zip:
             file.unlink()
-    except (IOError, zipfile.BadZipFile) as e:
+    except (OSError, zipfile.BadZipFile) as e:
         print(f"ERROR: Could not create or write to ZIP file: {e}")
         return False
 

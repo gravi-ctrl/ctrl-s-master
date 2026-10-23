@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 import os
-import sys
 import subprocess
+import sys
 from datetime import datetime
-from dotenv import load_dotenv
 from pathlib import Path
+
 from bitwarden_sdk import BitwardenClient, client_settings_from_dict
+from dotenv import load_dotenv
 
 # common_utils.py lives in the same directory as this script (src/_tools/)
 sys.path.append(str(Path(__file__).resolve().parent))
 from common_utils import rotate_backups
+
 
 def load_master_env():
     root_path_str = os.getenv("AUTOMATION_ROOT")
