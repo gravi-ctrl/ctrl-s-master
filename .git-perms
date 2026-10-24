@@ -1,6 +1,8 @@
 644	@USER:@GROUP	.commit-warning
 600	@USER:@GROUP	.env.example
 644	@USER:@GROUP	.gitattributes
+755	@USER:@GROUP	.github/workflows
+644	@USER:@GROUP	.github/workflows/ci.yml
 644	@USER:@GROUP	.gitignore
 644	@USER:@GROUP	LICENSE
 644	@USER:@GROUP	README.md
