@@ -1,0 +1,86 @@
+name: Code Quality & Tests
+
+# Save as .github/workflows/ci.yml in the ctrl_s_master repo (replaces the earlier tests.yml).
+
+on:
+  push:
+    branches: ['main']
+  pull_request:
+    branches: ['main']          # no paths filter, so required checks can never get stuck "Expected"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── 1. SHELL SCRIPTS ───────────────────────────────────────────────────────
+  shellcheck:
+    name: Lint Shell Scripts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@2.0.0
+        with:
+          severity: warning
+          ignore_paths: >-
+            node_modules
+            .git
+            venv
+            _archive
+
+  # ── 2. PYTHON LINT ─────────────────────────────────────────────────────────
+  python-lint:
+    name: Lint Python Code
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Check only. Run `ruff check . --fix` locally and commit the result.
+      # Use the same ruff config / ignore list as the scripts repo so both behave identically.
+      - name: Run Ruff Linter
+        run: |
+          pip install ruff==0.17.2
+          ruff check . --ignore E501,BLE001,PLW1510,S110,S112,SIM115,C408,RUF010,RUF059,SIM114,SIM102,PIE810,C414,E722,PERF102,ASYNC221,UP022
+
+  # ── 3. TESTS ───────────────────────────────────────────────────────────────
+  pytest:
+    name: pytest (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false          # let both OSes finish so you see every failure at once
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      PYTHONUTF8: "1"           # same as tests.bat; keeps emoji output from crashing on Windows
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}   # same as tests.sh
+        run: python -m pytest -v _tests/

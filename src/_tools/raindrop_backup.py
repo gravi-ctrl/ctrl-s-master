@@ -53,7 +53,7 @@ def get_config(account_type):
 
     config = {
         "backup_dest_dir": backup_dest,
-        "backups_to_keep": int(os.getenv("BACKUPS_TO_KEEP", 7)),
+        "backups_to_keep": int(os.getenv("BACKUPS_TO_KEEP", "7")),
         "account": {'name': account_type.capitalize(), 'token': token, 'folder': account_type.lower()}
     }
 
@@ -125,7 +125,7 @@ def save_as_csv(bookmarks, filepath: Path, collection_map):
             for item in bookmarks:
                 writer.writerow([
                     item.get('title', ''), item.get('link', ''),
-                    datetime.fromisoformat(item['created'].replace('Z', '+00:00')).strftime('%d-%m-%Y'),
+                    datetime.fromisoformat(item['created']).strftime('%d-%m-%Y'),
                     ', '.join(item.get('tags',[])),
                     collection_map.get(item.get('collectionId', -1), 'Unsorted'),
                     item.get('excerpt', ''), item.get('note', '')
@@ -151,7 +151,7 @@ def save_as_html(bookmarks, filepath: Path, account_name, collection_map):
                     f'{html.escape(item.get("title", "No Title"))}</a>'
                     f'<div class="meta">'
                     f'<span><strong>Collection:</strong> {html.escape(collection_map.get(item.get("collectionId", -1), "Unsorted"))}</span> | '
-                    f'<span><strong>Added:</strong> {datetime.fromisoformat(item["created"].replace("Z", "+00:00")).strftime("%d-%m-%Y")}</span>'
+                    f'<span><strong>Added:</strong> {datetime.fromisoformat(item["created"]).strftime("%d-%m-%Y")}</span>'
                 )
                 if tags_html:
                     f.write(f'<br><strong>Tags:</strong> {tags_html}')

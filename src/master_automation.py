@@ -75,7 +75,8 @@ if IS_WINDOWS:
     _VENV_PYTHON = ROOT_DIR / "venv" / "Scripts" / "python.exe"
 else:
     _VENV_PYTHON = ROOT_DIR / "venv" / "bin" / "python3"
-
+if not _VENV_PYTHON.exists():
+    _VENV_PYTHON = Path(sys.executable)
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Helpers
@@ -491,7 +492,7 @@ def send_telegram_report(job_succeeded: bool, generate_log_only=False):
         for pat in log_patterns.split(','):
             logs = list(LOGS_DIR.glob(pat.strip()))
             if logs:
-                files_to_send.append(sorted(logs, key=os.path.getmtime, reverse=True)[0])
+                files_to_send.append(max(logs, key=os.path.getmtime))
 
     if not generate_log_only and files_to_send:
         print(f"Sending {len(files_to_send)} attachments via Telegram...")
@@ -546,7 +547,7 @@ def send_email_report(job_succeeded: bool, generate_log_only=False):
         for pat in log_patterns.split(','):
             logs = list(LOGS_DIR.glob(pat.strip()))
             if logs:
-                files_to_attach.append(sorted(logs, key=os.path.getmtime, reverse=True)[0])
+                files_to_attach.append(sorted(logs, key=os.path.getmtime))
 
     for file_path in files_to_attach:
         try:

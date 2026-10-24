@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # dependencies:
 # pip install cryptography argon2-cffi
 
@@ -18,11 +19,8 @@ import json
 import sys
 
 try:
-    import shutil
-    from pathlib import Path
-
     from cryptography.hazmat.backends import default_backend
-    from cryptography.hazmat.primitives import ciphers, hashes, hmac, padding
+    from cryptography.hazmat.primitives import hashes, hmac, padding
     from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
     from cryptography.hazmat.primitives.kdf.hkdf import HKDFExpand
     from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
