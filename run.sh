@@ -58,7 +58,7 @@ cleanup() {
     # 1. Remove folder symlinks (rm -rf on a symlink removes the link,
     #    never follows into the target — the container data is safe)
     for folder in "${SECURE_FOLDERS[@]}"; do
-        rm -rf "$PROJECT_DIR/$folder" 2>/dev/null
+        rm -rf "${PROJECT_DIR:?}/$folder" 2>/dev/null
     done
 
     # 2. Force dismount container
@@ -75,9 +75,10 @@ sudo dmsetup remove_all > /dev/null 2>&1
 sleep 2
 
 echo "Mounting container..." >> "$LOG_FILE"
+# shellcheck disable=SC2024
 sudo veracrypt --text --non-interactive --pim=0 --keyfiles="" --protect-hidden=no \
     -m=nokernelcrypto \
-    --password=$(sudo cat $SECRET_FILE) "$VC_CONTAINER" "$MOUNT_POINT" >> "$LOG_FILE" 2>&1
+    --password="$(sudo cat "$SECRET_FILE")" "$VC_CONTAINER" "$MOUNT_POINT" >> "$LOG_FILE" 2>&1
 
 if [ $? -ne 0 ]; then
     echo "FATAL: Failed to mount VeraCrypt container." >> "$LOG_FILE"
@@ -88,7 +89,7 @@ fi
 # --- 3. LINK FOLDERS AND LOAD SECRETS INTO RAM ---
 echo "Linking folders..." >> "$LOG_FILE"
 for folder in "${SECURE_FOLDERS[@]}"; do
-    rm -rf "$PROJECT_DIR/$folder"
+    rm -rf "${PROJECT_DIR:?}/$folder"
     ln -sfn "$MOUNT_POINT/$folder" "$PROJECT_DIR/$folder"
 done
 
@@ -141,8 +142,9 @@ PYTHON_EXIT_CODE=$?
 # same shell process and inherits all variables automatically.
 echo "Unmounting container..." >> "$LOG_FILE"
 for folder in "${SECURE_FOLDERS[@]}"; do
-    rm -rf "$PROJECT_DIR/$folder" 2>/dev/null
+    rm -rf "${PROJECT_DIR:?}/$folder" 2>/dev/null
 done
+# shellcheck disable=SC2024
 sudo veracrypt --text --non-interactive --dismount "$VC_CONTAINER" >> "$LOG_FILE" 2>&1
 
 # --- 6. BACKUP CONTAINER ---
