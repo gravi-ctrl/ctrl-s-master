@@ -31,7 +31,7 @@
     </Filter>
     <FolderPairs>
         <Pair>
-            <Left>D:\x\@Sync\My_Shit\aegis</Left>
+            <Left>D:\x\@Sync\My_Shit\2fa</Left>
             <Right>%AUTOMATION_ROOT%/2fa</Right>
         </Pair>
     </FolderPairs>
