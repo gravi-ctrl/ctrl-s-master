@@ -335,19 +335,27 @@ def backup_b2() -> bool:
     keep_days = os.getenv("B2_KEEP_DAYS", "30d")
 
     # 1. Defensive Check: Credentials in .env
-    if not all([key_id, app_key, bucket]):
+    provided = [key_id, app_key, bucket]
+    if not any(provided):
+        # Offsite backup is optional: nothing configured at all = intentional skip.
         msg = "Skipped: B2 credentials not configured in .env"
         print(f"ℹ️  {msg}")
         _record_offsite_status("SKIPPED", msg)
         return True
+    if not all(provided):
+        msg = "Failed: B2 config incomplete (need B2_APPLICATION_KEY_ID, B2_APPLICATION_KEY and B2_BUCKET)"
+        print(f"❌ {msg}")
+        _record_offsite_status("FAILURE", msg)
+        return False
 
     # 2. Defensive Check: rclone binary installed
     rclone_bin = shutil.which("rclone")
     if not rclone_bin:
-        msg = "Skipped: 'rclone' executable not found on system PATH"
-        print(f"⚠️  {msg}")
-        _record_offsite_status("WARNING", msg)
-        return True
+        # B2 is configured, so a missing rclone means backups would silently stop.
+        msg = "Failed: B2 is configured but 'rclone' was not found on system PATH"
+        print(f"❌ {msg}")
+        _record_offsite_status("FAILURE", msg)
+        return False
 
     vc_container = ROOT_DIR / "vaults.hc"
     if not vc_container.exists():
@@ -390,7 +398,8 @@ def backup_b2() -> bool:
         if keep_days:
             print(f"🧹 Pruning cloud backups older than {keep_days}...")
             subprocess.run(
-                [rclone_bin, "delete", f"--min-age={keep_days}", f"b2:{bucket}"],
+                [rclone_bin, "delete", f"--min-age={keep_days}",
+                 "--include", "ctrl_s_master_*.hc", f"b2:{bucket}"],
                 env=rclone_env,
                 capture_output=True,
                 text=True,
@@ -508,8 +517,6 @@ def send_telegram_report(job_succeeded: bool, generate_log_only=False):
             except Exception as e:
                 print(f"Failed to send document {file_path.name}: {e}")
 
-    if FAILURE_LOG_FILE.exists():
-        os.remove(FAILURE_LOG_FILE)
     print("Telegram report finished.")
 
 
@@ -547,7 +554,7 @@ def send_email_report(job_succeeded: bool, generate_log_only=False):
         for pat in log_patterns.split(','):
             logs = list(LOGS_DIR.glob(pat.strip()))
             if logs:
-                files_to_attach.append(sorted(logs, key=os.path.getmtime))
+                files_to_attach.append(max(logs, key=os.path.getmtime))
 
     for file_path in files_to_attach:
         try:
@@ -572,8 +579,6 @@ def send_email_report(job_succeeded: bool, generate_log_only=False):
     except Exception as e:
         print(f"Email send error: {e}")
 
-    if FAILURE_LOG_FILE.exists():
-        os.remove(FAILURE_LOG_FILE)
     print("Email report finished.")
 
 
@@ -584,13 +589,25 @@ def send_email_report(job_succeeded: bool, generate_log_only=False):
 def send_report(job_succeeded: bool, generate_log_only=False):
     sent_anything = False
 
+    # Each channel is isolated so one failing never blocks the other.
     if all([EMAIL_SENDER, EMAIL_PASSWORD, EMAIL_RECIPIENT]):
-        send_email_report(job_succeeded, generate_log_only)
+        try:
+            send_email_report(job_succeeded, generate_log_only)
+        except Exception as e:
+            print(f"Email report crashed: {e}")
         sent_anything = True
 
     if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
-        send_telegram_report(job_succeeded, generate_log_only)
+        try:
+            send_telegram_report(job_succeeded, generate_log_only)
+        except Exception as e:
+            print(f"Telegram report crashed: {e}")
         sent_anything = True
+
+    # Both channels have read the failure log by now; clear it once.
+    if not generate_log_only and FAILURE_LOG_FILE.exists():
+        try: os.remove(FAILURE_LOG_FILE)
+        except OSError: pass
 
     if not sent_anything:
         preferred = "EMAIL_SENDER/EMAIL_PASSWORD/EMAIL_RECIPIENT" if IS_WINDOWS else "TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID"
