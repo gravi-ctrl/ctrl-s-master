@@ -4,12 +4,13 @@ import html
 import json
 import os
 import platform
+import re
 import shutil
 import smtplib
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
@@ -325,6 +326,89 @@ def _record_offsite_status(status: str, detail: str, duration: float = 0.0):
         print(f"Could not record offsite status: {e}")
 
 
+B2_NAME_RE = re.compile(r"^ctrl_s_master_(\d{4}-\d{2}-\d{2})\.hc$")
+B2_MIN_COPIES = 3  # never prune below this many dated copies, whatever B2_KEEP_DAYS says
+
+
+def _parse_keep_days(raw):
+    """'90d' or '90' -> 90. Anything else -> None."""
+    m = re.fullmatch(r"\s*(\d+)\s*d?\s*", raw or "", re.IGNORECASE)
+    return int(m.group(1)) if m else None
+
+
+def prune_b2(rclone_bin, rclone_env, bucket, keep_days_raw, today=None):
+    """Remove old ctrl_s_master_YYYY-MM-DD.hc copies using the date in the NAME.
+
+    Deliberately not rclone --min-age: that compares the file's modification time,
+    which for an uploaded container is its local mtime (VeraCrypt can preserve an old
+    one), so a fresh upload could look "old" and get pruned on the spot.
+    Only touches files matching the pattern, always keeps the newest B2_MIN_COPIES,
+    and never raises: a prune problem must not turn a good upload into a failure.
+    Returns (note, ok).
+    """
+    if not (keep_days_raw or "").strip():
+        return "", True  # blank B2_KEEP_DAYS = pruning disabled
+    keep_days = _parse_keep_days(keep_days_raw)
+    if keep_days is None:
+        note = f"prune skipped: B2_KEEP_DAYS={keep_days_raw!r} not understood (use e.g. 90d)"
+        print(f"⚠️  {note}")
+        return note, False
+
+    print(f"🧹 Pruning cloud backups older than {keep_days} days (by file name)...")
+    try:
+        ls = subprocess.run(
+            [rclone_bin, "lsf", "--files-only", "--include", "ctrl_s_master_*.hc", f"b2:{bucket}"],
+            env=rclone_env, capture_output=True, text=True, timeout=300,
+        )
+    except Exception as e:
+        note = f"prune skipped: could not list bucket ({e})"
+        print(f"⚠️  {note}")
+        return note, False
+    if ls.returncode != 0:
+        note = f"prune skipped: listing failed ({(ls.stderr or ls.stdout).strip()[:200]})"
+        print(f"⚠️  {note}")
+        return note, False
+
+    found = []
+    for line in ls.stdout.splitlines():
+        name = line.strip()
+        m = B2_NAME_RE.match(name)
+        if not m:
+            continue
+        try:
+            found.append((datetime.strptime(m.group(1), "%Y-%m-%d").date(), name))
+        except ValueError:
+            continue
+    found.sort(reverse=True)  # newest first
+
+    cutoff = (today or datetime.now().date()) - timedelta(days=keep_days)
+    doomed = [name for d, name in found[B2_MIN_COPIES:] if d < cutoff]
+
+    removed, failed = 0, []
+    for name in doomed:
+        try:
+            r = subprocess.run(
+                [rclone_bin, "deletefile", f"b2:{bucket}/{name}"],
+                env=rclone_env, capture_output=True, text=True, timeout=300,
+            )
+            ok = r.returncode == 0
+        except Exception:
+            ok = False
+        if ok:
+            removed += 1
+            print(f"   removed {name}")
+        else:
+            failed.append(name)
+
+    if failed:
+        note = f"prune: removed {removed}, FAILED {len(failed)} ({', '.join(failed)})"
+        print(f"⚠️  {note}")
+        return note, False
+    note = f"pruned {removed} old cop{'y' if removed == 1 else 'ies'}" if removed else ""
+    print(f"   {note or 'nothing to prune'} (kept {len(found) - removed} dated cop{'y' if len(found) - removed == 1 else 'ies'})")
+    return note, True
+
+
 def backup_b2() -> bool:
     print("\n" + "="*70)
     print("--- Task: Offsite Backup to Backblaze B2 ---")
@@ -394,20 +478,14 @@ def backup_b2() -> bool:
 
         print(f"✅ Upload successful ({duration}s).")
 
-        # 4. Prune older cloud backups
-        if keep_days:
-            print(f"🧹 Pruning cloud backups older than {keep_days}...")
-            subprocess.run(
-                [rclone_bin, "delete", f"--min-age={keep_days}",
-                 "--include", "ctrl_s_master_*.hc", f"b2:{bucket}"],
-                env=rclone_env,
-                capture_output=True,
-                text=True,
-                timeout=300
-            )
+        # 4. Prune older cloud backups (by the date in the file name, not by mtime)
+        prune_note, prune_ok = prune_b2(rclone_bin, rclone_env, bucket, keep_days)
 
         size_mb = round(vc_container.stat().st_size / (1024 * 1024), 1)
-        _record_offsite_status("SUCCESS", f"Uploaded {size_mb} MB in {duration}s to b2:{bucket}", duration=duration)
+        detail = f"Uploaded {size_mb} MB in {duration}s to b2:{bucket}"
+        if prune_note:
+            detail += f" | {prune_note}"
+        _record_offsite_status("SUCCESS" if prune_ok else "WARNING", detail, duration=duration)
         return True
 
     except Exception as e:
