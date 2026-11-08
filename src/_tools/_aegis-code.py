@@ -314,6 +314,7 @@ def main():
     chosen = [e for e in chosen if e not in unsupported]
     if not chosen:
         die("nothing to show")
+    chosen.sort(key=lambda e: label(e).lower())  # same order as the full listing, not search order
 
     if args.live and sys.stdout.isatty():
         show_live(chosen)
