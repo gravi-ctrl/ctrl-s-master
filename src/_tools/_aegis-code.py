@@ -9,6 +9,9 @@ READ-ONLY GUARANTEE: the vault is opened for reading once and never written.
 There is no output flag, nothing is written to disk, and secrets are never
 printed. The only thing that ever leaves memory is the code you asked for.
 
+Codes rejected by a service? Check this machine's clock first: TOTP is time-based,
+so a wrong system time gives valid-looking codes that never work.
+
 Requires: pip install cryptography
 """
 
@@ -20,6 +23,7 @@ import hmac
 import json
 import math
 import os
+import re
 import struct
 import sys
 import time
@@ -34,6 +38,9 @@ SUPPORTED = ("totp", "steam", "hotp")
 MAX_PASSWORD_ATTEMPTS = 3
 NEXT_BELOW_ONCE = 10  # one-shot mode: also show the next code when <= this many seconds are left
 NEXT_BELOW_LIVE = 5   # live mode: same, but with a tighter threshold
+
+
+BACKUP_RE = re.compile(r"^aegis-backup-\d{8}-\d{6}")  # Aegis names backups by timestamp
 
 
 class WrongPassword(Exception):
@@ -86,6 +93,38 @@ def decrypt_vault(data, password):
         None,
     )
     return json.loads(db.decode("utf-8"))
+
+
+def humanize_age(seconds):
+    seconds = max(0, int(seconds))
+    for unit, size in (("day", 86400), ("hour", 3600), ("minute", 60)):
+        if seconds >= size:
+            n = seconds // size
+            return f"{n} {unit}{'s' if n != 1 else ''} ago"
+    return "just now"
+
+
+def resolve_vault(path):
+    """Accept a vault file or a folder of backups (newest aegis-backup-* wins).
+
+    Always tells you (on stderr) which file is used and when it was last modified,
+    so a stale backup is obvious before you trust a code from it.
+    """
+    if os.path.isdir(path):
+        try:
+            names = [n for n in os.listdir(path)
+                     if BACKUP_RE.match(n) and os.path.isfile(os.path.join(path, n))]
+        except OSError as e:
+            die(f"cannot read {path}: {e.strerror}")
+        if not names:
+            die(f"no aegis-backup-* files found in {path}")
+        path = os.path.join(path, max(names))  # timestamped names sort chronologically
+    try:
+        age = time.time() - os.path.getmtime(path)
+    except OSError as e:
+        die(f"cannot read {path}: {e.strerror}")
+    print(f"vault: {os.path.basename(path)} (modified {humanize_age(age)})", file=sys.stderr)
+    return path
 
 
 def load_db(path):
@@ -187,7 +226,10 @@ def fields(entry, now, next_below):
     name = label(entry)
     if len(name) > MAX_LABEL:
         name = name[:MAX_LABEL - 2] + ".."
-    r = compute(entry, now)
+    try:
+        r = compute(entry, now)
+    except Exception:  # e.g. a damaged secret: flag this row, keep the others working
+        return name, "-", "invalid entry (bad secret?)", ""
     if r is None:
         return name, "-", f"{entry.get('type')} not supported", ""
     if "codes" in r:
@@ -272,9 +314,12 @@ def pick(matches, term):
 def main():
     p = argparse.ArgumentParser(
         description="Read-only 2FA code viewer for an encrypted Aegis vault backup.",
-        epilog="Read-only: never modifies the vault and never writes anything to disk.",
+        epilog="Read-only: never modifies the vault and never writes anything to disk. "
+               "Codes rejected? Check this machine's clock first.",
     )
-    p.add_argument("-i", "--input", required=True, help="Aegis vault backup file (.json)")
+    p.add_argument("-i", "--input", required=True,
+                   help="Aegis vault backup file, or a folder of backups (the newest "
+                        "aegis-backup-* file in it is used)")
     p.add_argument("-s", "--service",
                    help="service(s) to look up, case-insensitive. Separate several with commas "
                         "(e.g. 'github,steam'). Words separated by a space must all match one "
@@ -285,7 +330,7 @@ def main():
                    help="keep refreshing the codes every second until Ctrl+C")
     args = p.parse_args()
 
-    db = load_db(args.input)
+    db = load_db(resolve_vault(args.input))
     entries = db.get("entries", [])
 
     if not args.service:
