@@ -296,6 +296,22 @@ TELEGRAM_CHAT_ID=987654321
 
 ---
 
+#### E. Offsite Backup (Backblaze B2)
+
+Offsite replication to Backblaze B2 is optional and automatic. If configured, the supervisor uploads the updated container to B2 and prunes old archives using in-memory credentials.
+
+| Variable | Description | Default |
+| :--- | :--- | :--- |
+| `B2_APPLICATION_KEY_ID` | Your Backblaze Application Key ID (`keyID`). | *(Required for B2)* |
+| `B2_APPLICATION_KEY` | Your Backblaze Application Key secret (`applicationKey`). | *(Required for B2)* |
+| `B2_BUCKET` | The name of your private B2 bucket (e.g. `my-vault-backups`). | *(Required for B2)* |
+| `B2_KEEP_DAYS` | Retention window. Prunes archives older than this (e.g. `30d`, `90d`). | `30d` |
+| `B2_MIN_COPIES` | Safety floor. Never prunes below this number of recent copies. | `3` |
+
+> ℹ️ If any required B2 variables are left blank or omitted from `.env`, offsite backup is safely skipped without affecting local backups.
+
+---
+
 ## 🔐 Security & Cleanup
 
 Credentials are never written to the project directory. Instead, the Supervisor scripts load the `.env` directly from the encrypted container **into the shell process's memory** at runtime. Every child process (Python tasks, reports) inherits these variables automatically.
@@ -461,6 +477,7 @@ ctrl_s_master/
 ├── 📁 _tests/                            # Pytest suite.
 ├── 📁 _logs/                             # Timestamped execution logs.
 ├── 📁 venv/                              # Isolated Python environment.
+├── 📁 breakglass/                        # Emergency standalone scripts (run without the project).
 │
 ├── 📊 status.json                        # (Gitignored) Machine-readable run history.
 ├── 📄 status_dashboard.md                # (Gitignored) Human-readable run dashboard.
