@@ -327,7 +327,6 @@ def _record_offsite_status(status: str, detail: str, duration: float = 0.0):
 
 
 B2_NAME_RE = re.compile(r"^ctrl_s_master_(\d{4}-\d{2}-\d{2})\.hc$")
-B2_MIN_COPIES = 3  # never prune below this many dated copies, whatever B2_KEEP_DAYS says
 
 
 def _parse_keep_days(raw):
@@ -335,8 +334,14 @@ def _parse_keep_days(raw):
     m = re.fullmatch(r"\s*(\d+)\s*d?\s*", raw or "", re.IGNORECASE)
     return int(m.group(1)) if m else None
 
+def _parse_min_copies(raw, default=3):
+    """'3' -> 3. Blank/None -> default (3). Non-digit string -> None."""
+    if raw is None or str(raw).strip() == "":
+        return default
+    m = re.fullmatch(r"\s*(\d+)\s*", str(raw))
+    return int(m.group(1)) if m else None
 
-def prune_b2(rclone_bin, rclone_env, bucket, keep_days_raw, today=None):
+def prune_b2(rclone_bin, rclone_env, bucket, keep_days_raw, today=None, min_copies_raw=None):
     """Remove old ctrl_s_master_YYYY-MM-DD.hc copies using the date in the NAME.
 
     Deliberately not rclone --min-age: that compares the file's modification time,
@@ -351,6 +356,13 @@ def prune_b2(rclone_bin, rclone_env, bucket, keep_days_raw, today=None):
     keep_days = _parse_keep_days(keep_days_raw)
     if keep_days is None:
         note = f"prune skipped: B2_KEEP_DAYS={keep_days_raw!r} not understood (use e.g. 90d)"
+        print(f"⚠️  {note}")
+        return note, False
+
+    # Defensive check for min_copies
+    min_copies = _parse_min_copies(min_copies_raw)
+    if min_copies is None:
+        note = f"prune skipped: B2_MIN_COPIES={min_copies_raw!r} not understood (must be a whole number)"
         print(f"⚠️  {note}")
         return note, False
 
@@ -382,7 +394,7 @@ def prune_b2(rclone_bin, rclone_env, bucket, keep_days_raw, today=None):
     found.sort(reverse=True)  # newest first
 
     cutoff = (today or datetime.now().date()) - timedelta(days=keep_days)
-    doomed = [name for d, name in found[B2_MIN_COPIES:] if d < cutoff]
+    doomed = [name for d, name in found[min_copies:] if d < cutoff]
 
     removed, failed = 0, []
     for name in doomed:
@@ -417,6 +429,7 @@ def backup_b2() -> bool:
     app_key = os.getenv("B2_APPLICATION_KEY") or os.getenv("B2_KEY")
     bucket = os.getenv("B2_BUCKET")
     keep_days = os.getenv("B2_KEEP_DAYS", "30d")
+    min_copies = os.getenv("B2_MIN_COPIES", "3")
 
     # 1. Defensive Check: Credentials in .env
     provided = [key_id, app_key, bucket]
@@ -479,7 +492,7 @@ def backup_b2() -> bool:
         print(f"✅ Upload successful ({duration}s).")
 
         # 4. Prune older cloud backups (by the date in the file name, not by mtime)
-        prune_note, prune_ok = prune_b2(rclone_bin, rclone_env, bucket, keep_days)
+        prune_note, prune_ok = prune_b2(rclone_bin, rclone_env, bucket, keep_days, min_copies_raw=min_copies)
 
         size_mb = round(vc_container.stat().st_size / (1024 * 1024), 1)
         detail = f"Uploaded {size_mb} MB in {duration}s to b2:{bucket}"
