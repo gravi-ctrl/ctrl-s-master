@@ -1,0 +1,2 @@
+extend-exclude = ["breakglass/bw-decrypt.py", "breakglass/aegis-decrypt.py"]
+force-exclude = true
