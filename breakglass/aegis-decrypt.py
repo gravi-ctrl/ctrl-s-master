@@ -21,7 +21,7 @@ backend = default_backend()
 
 def die(msg, code=1):
     print(msg, file=sys.stderr)
-    exit(code)
+    sys.exit(code)
 
 def main():
     parser = argparse.ArgumentParser(description="Decrypt an Aegis vault")

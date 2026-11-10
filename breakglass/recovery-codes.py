@@ -424,7 +424,7 @@ def prompt_new_password(label):
     while True:
         a = getpass.getpass(f"{label} (at least {MIN_PASSWORD_LEN} characters): ")
         if len(a) < MIN_PASSWORD_LEN:
-            print(f"Too short. A long passphrase beats a short complex one.", file=sys.stderr)
+            print("Too short. A long passphrase beats a short complex one.", file=sys.stderr)
             continue
         if a != getpass.getpass("Repeat it: "):
             print("They don't match, try again.", file=sys.stderr)
@@ -583,7 +583,7 @@ def codes_from_file(path):
           "(no title, numbering or notes). Fix it first if it doesn't.")
     input("Press Enter to continue, Ctrl+C to cancel: ")
     try:
-        with open(path, "r", encoding="utf-8-sig") as f:  # utf-8-sig drops a Notepad BOM
+        with open(path, encoding="utf-8-sig") as f:  # utf-8-sig drops a Notepad BOM
             text = f.read()
     except UnicodeDecodeError:
         die(f"{path} is not a UTF-8 text file")

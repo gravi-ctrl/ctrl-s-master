@@ -181,7 +181,7 @@ def decryptProtectedSymmetricKey(CipherString, masterkey, mastermac):
               "Rotating your account encryption key should resolve this for future backups of data.json.\n"
               "Unfortunately a new sync/backup will be required after rotaion. \n\n\n"
               "https://bitwarden.com/help/account-encryption-key/#rotate-your-encryption-key")
-        exit(1)
+        sys.exit(1)
 
     iv          = base64.b64decode(CipherString.split(".")[1].split("|")[0])
     ciphertext  = base64.b64decode(CipherString.split(".")[1].split("|")[1])
@@ -387,7 +387,7 @@ def checkFileFormatVersion(options):
         # This occurs when the desktop app logs out and clears account data from data.json
         if (len(accounts) == 0):
             print(f"ERROR: No Accounts Found In {options.inputfile}")
-            exit(1)
+            sys.exit(1)
         
         # If data.json contains multiple accounts, prompt to select which to decrypt.
         if (len(accounts) > 1):
@@ -434,7 +434,7 @@ def checkFileFormatVersion(options):
         # This occurs when the desktop app logs out and clears account data from data.json
         if (len(accounts) == 0):
             print(f"ERROR: No Accounts Found In {options.inputfile}")
-            exit(1)
+            sys.exit(1)
         
         # If data.json contains multiple accounts, prompt to select which to decrypt.
         if (len(accounts) > 1):
