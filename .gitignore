@@ -22,3 +22,13 @@
 **/backups/
 **/status_dashboard.md
 **/status.json
+
+# breakglass/: only the scripts and the README belong in git
+breakglass/*
+!breakglass/*.py
+!breakglass/README.md
+
+# recovery-codes vaults and their backup folders, wherever they end up
+**/*.rcv
+**/*.rcv.backups/
+**/decrypted.json
