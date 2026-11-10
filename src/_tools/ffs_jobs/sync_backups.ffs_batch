@@ -16,15 +16,43 @@
             <Item>*</Item>
         </Include>
         <Exclude>
+            <!-- System & Sync Junk -->
             <Item>\System Volume Information\</Item>
             <Item>\RECYCLE?\</Item>
             <Item>*\thumbs.db</Item>
             <Item>*\desktop.ini</Item>
+            <Item>*\.git\</Item>
             <Item>*\.git</Item>
             <Item>*\.stfolder\</Item>
             <Item>*\.stversions\</Item>
-            <Item>\_pvt\</Item>
             <Item>\self-hosted\docker-containers-backup\</Item>
+
+            <!-- ctrl_s_master: Python Runtime, venv & Caches -->
+            <Item>\ctrl_s_master\venv\</Item>
+            <Item>*\__pycache__\</Item>
+            <Item>*.pyc</Item>
+            <Item>*\.pytest_cache\</Item>
+
+            <!-- ctrl_s_master: Secrets & Configs -->
+            <Item>\ctrl_s_master\.env</Item>
+            <Item>*\.env</Item>
+
+            <!-- ctrl_s_master: Logs, Temp & Dry-run -->
+            <Item>*.log</Item>
+            <Item>*.tmp</Item>
+            <Item>*.bak</Item>
+            <Item>\ctrl_s_master\_logs\</Item>
+            <Item>\ctrl_s_master\_dry_run_output\</Item>
+
+            <!-- ctrl_s_master: The Active Container & Status Dashboards -->
+            <Item>\ctrl_s_master\vaults.hc</Item>
+            <Item>\ctrl_s_master\status_dashboard.md</Item>
+            <Item>\ctrl_s_master\status.json</Item>
+
+            <!-- ctrl_s_master: Junctions (CRITICAL: prevents infinite recursion loops) -->
+            <Item>\ctrl_s_master\vaults\</Item>
+            <Item>\ctrl_s_master\2fa\</Item>
+            <Item>\ctrl_s_master\backups\</Item>
         </Exclude>
         <SizeMin Unit="None">0</SizeMin>
         <SizeMax Unit="None">0</SizeMax>
