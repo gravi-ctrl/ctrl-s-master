@@ -79,6 +79,8 @@ only in memory. The exact file format is documented in the docstring at the top 
 - Notes are secrets too. They are typed or pasted with nothing shown, never appear on the
   command line, and are only displayed when you pick `n` in `use`. A service can be notes
   only (a security question and answer): `add <service> -n`, then press Enter at the codes prompt.
+- A service can be typed as part of its name (`use steam`). If that matches several, you pick from
+  a numbered list of just those, after the single password prompt.
 - Each change makes a backup first, in `<vault>.rcv.backups/`, named `recovery-backup-<date>-<time>.rcv`.
   The 15 newest are kept.
 - Backups open with the password the vault had when they were made. After `passwd`,

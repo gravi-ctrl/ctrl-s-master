@@ -334,19 +334,6 @@ def exact_service(db, name):
     return None
 
 
-def find_service(db, query):
-    """Exact name (any case) first, else a unique substring match."""
-    key = exact_service(db, query)
-    if key:
-        return key, db["services"][key]
-    hits = [k for k in db["services"] if query.strip().lower() in k.lower()]
-    if len(hits) == 1:
-        return hits[0], db["services"][hits[0]]
-    if not hits:
-        die(f"no service matches '{query}' (try the list command)")
-    die(f"'{query}' matches several services: {', '.join(sorted(hits))}")
-
-
 def summarize(svc):
     """(unused, total, flag, note_lines) for listings."""
     codes = svc["codes"]
@@ -369,19 +356,14 @@ def fit(name):
     return name if len(name) <= NAME_MAX else name[:NAME_MAX - 3] + "..."
 
 
-def resolve_service(db, query):
-    """A service by name, or (no name given) pick one from a numbered list.
-    Returns (name, data), or None if the user cancelled the picker."""
-    if query is not None:
-        return find_service(db, query)
-    names = sorted(db["services"], key=str.lower)
-    if not names:
-        die("the vault is empty (add a service first)")
+def pick_service(db, names, heading=None):
+    """Numbered list of `names`; returns (name, data), or None if cancelled."""
+    names = sorted(names, key=str.lower)
     info = [summarize(db["services"][n]) for n in names]
     states = [short_state(u, t) for u, t, _, _ in info]
     nw = max(len(fit(n)) for n in names)
     sw = max(len(x) for x in states)
-    print()
+    print(f"\n{heading}" if heading else "")
     for i, (name, (_, _, flag, note_lines), state) in enumerate(zip(names, info, states), 1):
         tail = (f"  {flag}" if flag else "") + ("  notes" if note_lines else "")
         print(f"  {i:>2}) {fit(name):<{nw}}  {state:<{sw}}{tail}")
@@ -389,6 +371,27 @@ def resolve_service(db, query):
     if choice is None:
         return None
     return names[choice - 1], db["services"][names[choice - 1]]
+
+
+def resolve_service(db, query):
+    """A service by name, or (no name given) pick one from a numbered list.
+
+    A name matches exactly (any letter case) or as part of a name; if a part of a
+    name matches several services you pick from just those. Returns (name, data),
+    or None if the user cancelled the picker."""
+    if query is None:
+        if not db["services"]:
+            die("the vault is empty (add a service first)")
+        return pick_service(db, db["services"])
+    key = exact_service(db, query)
+    if key:
+        return key, db["services"][key]
+    hits = [k for k in db["services"] if query.strip().lower() in k.lower()]
+    if not hits:
+        die(f"no service matches '{query}' (try the list command)")
+    if len(hits) == 1:
+        return hits[0], db["services"][hits[0]]
+    return pick_service(db, hits, f"'{query}' matches {len(hits)} services:")
 
 
 # -------------------------------------------------------------- terminal ----
