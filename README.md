@@ -1,22 +1,33 @@
-![Static Badge](https://img.shields.io/badge/https%3A%2F%2Fimg.shields.io%2Fbadge%2Flicense-MIT-green?label=License)
-![Static Badge](https://img.shields.io/badge/https%3A%2F%2Fimg.shields.io%2Fbadge%2Fplatform-Linux%20%7C%20Windows-blue?label=Platform)
+![License](https://img.shields.io/badge/license-MIT-green?label=License)
+![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-blue?label=Platform)
+[![Code Quality & Tests](https://github.com/gravi-ctrl/ctrl-s-master/actions/workflows/ci.yml/badge.svg)](https://github.com/gravi-ctrl/ctrl-s-master/actions/workflows/ci.yml)
 
 # ctrl-s-master
 *Named after the universal shortcut for saving: CTRL + S.*
 
-A robust, automated suite for creating local archives of critical data from services like Bitwarden and Raindrop.io, and for syncing other key files (2FA codes, documentation, etc.). The entire process is orchestrated, encrypted, logged, and sends a notification upon completion or failure.
+This is my safety net for the accounts I can't afford to lose access to. It makes local, encrypted copies of my Bitwarden vaults and Raindrop bookmarks, syncs a few other key folders (2FA backups, documentation), and keeps all of it inside a container that is only open while the job runs. When something goes wrong, I get a message.
 
-The project runs on **both Windows and Linux** from a single shared codebase.
+It runs on **both Windows and Linux** from a single codebase.
+
+### ✨ The Short Version
+
+* **Encrypted at rest.** Everything lands in a VeraCrypt container (`vaults.hc`). It's mounted for the length of a run and locked again right after.
+* **Secrets stay in the container.** The `.env` lives inside the encrypted container and is loaded into the run's memory, never copied into the project folder.
+* **Backed up twice.** After a successful run the container is copied to my sync folder (one dated copy, replacing the previous one) and optionally uploaded to Backblaze B2, which keeps several dated copies.
+* **New sync jobs are files, not code.** Drop a FreeFileSync batch (Windows) or an rsync JSON file (Linux) into the jobs folder and the next run picks it up.
+* **It tells me when it breaks.** A report goes out after every run (Telegram, email, or both). Even a failure before the container opens sends a Telegram alert, through a tiny separate keyfile.
+* **Tested on both platforms.** I've run complete backups on Windows and on Linux, including the local copy and the B2 upload.
+* **Built to be recovered without it.** `breakglass/` holds standalone scripts that read every export without needing this project.
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ How it Works
 
-This system uses a **Supervisor & Engine** model designed to keep your data secure at rest.
+Two scripts split the job, so the part that handles secrets stays small:
 
-1. **The Vault:** A VeraCrypt container (`vaults.hc`) acts as the secure, encrypted destination for all outputs.
-2. **The Supervisor (`run.bat` / `run.sh`):** Handles the physical security layer. It mounts the encrypted container, establishes secure directory links, injects the hidden `.env` secrets, runs the engine, backs up the `.hc` file to your sync folder, and immediately unmounts/locks the container upon completion.
-3. **The Engine (`master_automation.py`):** A Python application that orchestrates API calls, exports, and file sync operations.
+1. **The Vault:** `vaults.hc`, a VeraCrypt container. It's the only place the outputs live.
+2. **The Supervisor** (`run.bat` / `run.sh`): the security layer. It mounts the container, links its folders into the project, loads the secrets into memory, hands over to the Engine, copies the container to my sync folder and to B2, and unmounts it again.
+3. **The Engine** (`master_automation.py`): the Python part that does the actual work, which is the Bitwarden and Raindrop exports and the file syncs.
 
 | Layer | Windows | Linux |
 | :--- | :--- | :--- |
@@ -28,30 +39,44 @@ This system uses a **Supervisor & Engine** model designed to keep your data secu
 | Fail-Safe | Pre-run cleanup & GOTO traps | Native `trap` signals |
 | Notifications | Email (SMTP) | Telegram |
 
-> Both channels can be active simultaneously if both are configured in `.env`.
+> Both notification channels can be active at once if both are configured in `.env`.
+
+### A run, step by step
+
+1. **Clean up** anything a previous crash left behind (stale links, a container that is still mounted).
+2. **Mount** `vaults.hc`, using the password from the `.vc_secret` keyfile.
+3. **Link** the container's folders (`vaults`, `2fa`, `backups`) into the project.
+4. **Load** the container's `.env` into memory.
+5. **Run the Engine:** the Raindrop backups, then the Bitwarden exports, then any sync jobs.
+6. **Remove the links and dismount** the container.
+7. **Back up the container,** but only if every task succeeded: copy it to the sync folder, then upload it to B2 if that's configured.
+8. **Send the report.**
+
+If a task fails, the run stops (unless `CONTINUE_ON_ERROR=true`), the container is still dismounted, the container backups are skipped, and a failure report goes out.
 
 ---
 
 ## 🚀 Getting Started
 
-### Step 1 — Install Prerequisites
+### Step 1: Install Prerequisites
 
 #### 🪟 Windows
 | Software | Purpose | Link |
 | :--- | :--- | :--- |
-| Python | Core runtime | [python.org](https://www.python.org/downloads/) |
+| Python | Core runtime (must be on your `PATH`) | [python.org](https://www.python.org/downloads/) |
 | VeraCrypt | Encrypted container | [veracrypt.fr](https://www.veracrypt.fr/en/Downloads.html) |
 | FreeFileSync | File syncing | [freefilesync.org](https://freefilesync.org/download.php) |
-| Chocolatey | Tool Management | [chocolatey.org](https://chocolatey.org/install) |
-| rclone | Cloud Backup | Installed via `setup.bat` and `setup.sh` |
+| Chocolatey | Package manager that `setup.bat` uses to install the tools below | [chocolatey.org](https://chocolatey.org/install) |
+| Bitwarden CLI | Vault exports | Installed via `setup.bat` |
+| rclone | Cloud Backup | Installed via `setup.bat` |
 
 #### 🐧 Linux (Ubuntu/Debian)
 - Root/sudo access is required for mounting.
-- All system dependencies (`veracrypt`, `bitwarden CLI`, `python-venv`, `rsync`) are installed automatically by `setup.sh`.
+- `setup.sh` installs everything else: VeraCrypt (from a PPA), the Bitwarden CLI, rclone, rsync, curl, unzip, dos2unix and the Python venv tooling.
 
 ---
 
-### Step 2 — One-Time Environment Setup
+### Step 2: One-Time Environment Setup
 
 #### 🪟 Windows
 1. Open a **Command Prompt as Administrator**.
@@ -59,23 +84,23 @@ This system uses a **Supervisor & Engine** model designed to keep your data secu
 ```cmd
 setup.bat
 ```
-*This script will build the Python virtual environment and use Chocolatey to install/update the Bitwarden CLI system-wide.*
+*This builds the Python virtual environment, installs the Python requirements, and uses Chocolatey to install or update the Bitwarden CLI and rclone system-wide.*
 
 #### 🐧 Linux
 ```bash
 chmod +x setup.sh
 sudo ./setup.sh
 ```
-This installs system packages, VeraCrypt (via PPA), the Bitwarden CLI, and creates the Python virtual environment.
+This installs the system packages, VeraCrypt (via PPA), the Bitwarden CLI and rclone, then creates the Python virtual environment and installs the requirements.
 
 ---
 
-### Step 3 — Configure the Auto-Unlocker
+### Step 3: Configure the Auto-Unlocker
 
 The supervisor scripts need a way to open the VeraCrypt container without interactive input. Both platforms use a plain-text keyfile stored in your user directory.
 
 #### 🪟 Windows
-Create a file named `.vc_secret` in `C:\Users\<YourUsername>\` containing **only** your vault password. Then harden it:
+Create a file named `.vc_secret` in `C:\Users\<YourUsername>\` containing **only** your vault password (one line). Then harden it:
 ```cmd
 :: 1. Encrypt using Windows EFS (tied to your login)
 cipher /e "%USERPROFILE%\.vc_secret"
@@ -98,11 +123,11 @@ The file is owned and readable only by root, which is the same user that runs th
 
 ---
 
-### Step 3b — Configure Fatal Notifications (Recommended)
+### Step 3b: Configure Fatal Notifications (Recommended)
 
-The normal Telegram/Email report requires secrets from the container to fire. If the run fails *before* the container is loaded — wrong password, missing container, Python error — you would get no notification at all and only discover the failure by checking logs manually.
+The normal Telegram or email report needs secrets from the container to fire. If a run fails *before* the container is loaded (wrong password, missing container, a Python error while reading `.env`), you would get no notification at all and would only find out by checking the logs.
 
-To close this gap, create a second minimal keyfile **outside the container** containing only your Telegram bot credentials. The supervisor reads this file directly if a pre-load failure occurs.
+To close that gap, create a second minimal keyfile **outside the container** containing only your Telegram bot credentials. The supervisor reads this file directly if a pre-load failure occurs, and sends the alert with `curl` (which ships with Windows 10 and 11).
 
 #### 🪟 Windows
 Create `%USERPROFILE%\.vc_notify` (e.g. `C:\Users\YourName\.vc_notify`):
@@ -118,25 +143,22 @@ icacls "%USERPROFILE%\.vc_notify" /inheritance:r /grant "%USERNAME%:R" /grant "S
 ```
 
 #### 🐧 Linux
-Create `/root/.vc_notify`:
+Create `/root/.vc_notify` and restrict it:
 ```bash
 sudo nano /root/.vc_notify
+sudo chmod 600 /root/.vc_notify
 ```
 Contents:
 ```
 BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
 CHAT_ID=987654321
 ```
-Then restrict it:
-```bash
-sudo chmod 600 /root/.vc_notify
-```
 
-> ℹ️ This file is intentionally minimal — just two lines, one credential, one purpose. It does not replace or duplicate your main `.env`. If the file does not exist the supervisor continues silently, so this step is optional but strongly recommended for unattended scheduled runs.
+> ℹ️ This file is intentionally minimal: two lines, one credential, one purpose. It does not replace or duplicate your main `.env`. If the file does not exist the supervisor continues silently, so this step is optional but strongly recommended for unattended scheduled runs.
 
 ---
 
-### Step 4 — Initialize the Container
+### Step 4: Initialize the Container
 
 This is a one-time step. You must create the required folder skeleton inside the container before the first automated run.
 
@@ -148,7 +170,7 @@ This is a one-time step. You must create the required folder skeleton inside the
    Z:\2fa\
    Z:\backups\
    ```
-3. Copy your configured `.env` file **onto the `Z:` drive** (see Configuration section below). The supervisor reads it directly from the container at runtime, loading all credentials into memory — they are never written to your project directory.
+3. Copy your configured `.env` file **onto the `Z:` drive** (see the Configuration section below). The supervisor reads it directly from the container at runtime and loads the credentials into memory, so they are never written to your project directory.
 4. Unmount from the VeraCrypt GUI.
 
 #### 🐧 Linux
@@ -172,9 +194,21 @@ sudo veracrypt --text --dismount ./vaults.hc
 
 ---
 
-### Step 5 — Configure the Backup Destination
+### Step 5: Check the Supervisor Settings
 
-Open your platform's supervisor script and set the `BACKUP_DEST` variable to the folder where the updated `vaults.hc` should be copied after each successful run (e.g., your Syncthing or cloud sync folder).
+Open your platform's supervisor script. The settings are at the top of the file.
+
+| Setting | Windows (`run.bat`) | Linux (`run.sh`) |
+| :--- | :--- | :--- |
+| Container file | `VC_CONTAINER` (default `vaults.hc` in the project folder) | `VC_CONTAINER` (same) |
+| VeraCrypt location | `VERACRYPT_EXE` | `veracrypt` from `PATH` |
+| Where it mounts | `MOUNT_DRIVE` (default `Z`) | `MOUNT_POINT` (default `/mnt/secure_vaults`) |
+| Linked folders | `SECURE_FOLDERS` | `SECURE_FOLDERS` |
+| Password keyfile | `SECRET_FILE` (`%USERPROFILE%\.vc_secret`) | `SECRET_FILE` (`/root/.vc_secret`) |
+| Fatal-alert keyfile | `NOTIFY_FILE` (`%USERPROFILE%\.vc_notify`) | `NOTIFY_FILE` (`/root/.vc_notify`) |
+| Backup destination | `BACKUP_DEST` | `BACKUP_DEST` |
+
+The one you must set is `BACKUP_DEST`, the folder where the updated `vaults.hc` is copied after each successful run (e.g. your Syncthing or cloud sync folder):
 
 ```bat
 :: run.bat
@@ -185,19 +219,23 @@ set "BACKUP_DEST=D:\x\@Sync\My_Shit"
 BACKUP_DEST="/data/assets/syncthing/My_Shit"
 ```
 
+The copy is named `ctrl_s_master_YYYY-MM-DD.hc` and replaces any older `ctrl_s_master_*.hc` in that folder, so the folder always holds one copy.
+
+> ℹ️ If `BACKUP_DEST` doesn't exist, `run.bat` treats it as an error, while `run.sh` skips the local copy without complaint. Double-check the path.
+
 ---
 
 ## ⚙️ Sync Job Configuration
 
-File syncing is fully dynamic and data-driven. **No code changes are required to add new sync jobs.**
+File syncing is data-driven. **No code changes are required to add new sync jobs.**
 
 #### 🪟 Windows (FreeFileSync)
-Drop any `.ffs_batch` file into `src/_tools/ffs_jobs/`. The engine will automatically discover and run it. Ensure `FFS_PATH` is correctly set in your `.env` file so the engine knows where the FreeFileSync executable is located.
+Drop any `.ffs_batch` file into `src/_tools/ffs_jobs/`. The engine discovers and runs it automatically, as a task named `ffs-<filename>`. Ensure `FFS_PATH` is correctly set in your `.env` file so the engine knows where the FreeFileSync executable is located.
 
 *Note: Use %AUTOMATION_ROOT% in your FreeFileSync batch file paths to refer dynamically to the project directory.*
 
 #### 🐧 Linux (rsync)
-Drop a `.json` file into `src/_tools/rsync_jobs/`. The engine will automatically parse the file and execute the `rsync` command. 
+Drop a `.json` file into `src/_tools/rsync_jobs/`. The engine parses the file and runs `rsync` as a task named `rsync-<filename>`.
 
 Example `sync_backups.json`:
 ```json
@@ -210,11 +248,13 @@ Example `sync_backups.json`:
 
 *Note: Use ${AUTOMATION_ROOT} in your JSON configuration paths to refer dynamically to the project directory.*
 
+> ⚠️ **rsync jobs mirror the source.** They run `rsync -rltDv --delete`, so a file you delete at the source is also removed from the destination on the next run. Keep that in mind for folders where the container is meant to hold history.
+
 ---
 
 ## 🔐 Configuration (`.env`)
 
-The `.env` file lives inside the VeraCrypt container and is the single source of truth for all credentials and paths. Use `.env.example` as your starting template.
+The `.env` file lives inside the VeraCrypt container and is the single source of truth for all credentials and paths. Use `.env.example` as your starting template. It is the complete list of variables, and the tables below explain what each one does.
 
 > ⚠️ **Security Warning:** This file handles extremely sensitive information. Keeping it inside the container ensures it is always encrypted at rest and only exposed in memory during an active run.
 
@@ -222,13 +262,13 @@ The `.env` file lives inside the VeraCrypt container and is the single source of
 
 #### A. Bitwarden Credentials
 
-The export process uses Bitwarden Secrets Manager to retrieve credentials at runtime — your passwords never sit in a config file.
+The export process uses Bitwarden Secrets Manager to retrieve credentials at runtime, so your passwords never sit in a config file.
 
 1. **Create a Machine Account & Access Token**
    - Navigate to **Bitwarden Secrets Manager** → **Machine accounts**.
    - Create a new machine account (e.g., `vault-exporter`).
    - Under **Access tokens**, click **+ Create access token**.
-   - **Copy the token immediately** — you won't see it again. This is `BW_ACCESS_TOKEN`.
+   - **Copy the token immediately**, because you won't see it again. This is `BW_ACCESS_TOKEN`.
 
 2. **Get Your Vault's API Key**
    - Go to **Bitwarden Web Vault** → **Settings** → **Security** → **Keys**.
@@ -237,13 +277,26 @@ The export process uses Bitwarden Secrets Manager to retrieve credentials at run
 
 3. **Create Secrets and Copy UUIDs**
    - In Secrets Manager, create a **Project** and add three secrets per vault: `client_id`, `client_secret`, and `Master Password`.
-   - In the project's **People** tab, grant your user account **Read** access — this is a required step.
+   - In the project's **People** tab, grant your user account **Read** access. This is a required step.
    - Link the machine account to each secret via the **Machine accounts** tab.
    - Copy each secret's **UUID**. These fill `BW_*_CLIENT_ID_UUID`, `BW_*_CLIENT_SECRET_UUID`, and `BW_*_MASTER_PASSWORD_UUID`.
 
 4. **Organization ID** *(only if `BW_*_IS_ORGANIZATION=true`)*
    - In the Web Vault **Admin Console**, select your Organization.
    - The ID is in the browser URL between `/organizations/` and `/vault`.
+
+In every variable name, `*` stands for `PERSONAL` or `WORK`. A vault whose `BW_*_CLIENT_ID_UUID` is empty is skipped.
+
+| Variable | Purpose |
+| :--- | :--- |
+| `BW_ACCESS_TOKEN` | The machine account's access token (step 1). |
+| `BW_API_URL`, `BW_IDENTITY_URL` | Your Bitwarden cloud endpoints (for example `https://api.bitwarden.com` and `https://identity.bitwarden.com`, or the `.eu` equivalents). |
+| `BW_STATE_FILE` | Where the Bitwarden SDK keeps its login state, relative to `src/`. |
+| `BW_CLI_PATH` | `bw` to use the one on your `PATH`, or a path to a specific binary. |
+| `BW_*_OUTPUT_FILENAME` | Base name of the export, e.g. `bitwarden_personal.json`. Required. Files are written to `vaults/` as `<number>-<name>_<dd-mm-yyyy>.json`, with the number counting up. |
+| `BW_*_EXPORT_FORMAT` | `json` (the default) or `encrypted_json`. **Use `encrypted_json`** for a password-protected export. |
+| `BW_SERIALS_TO_KEEP` | How many exports to keep per vault. `0` (the default) keeps them all. |
+| `BW_VAULTS_DIR` | Output folder, relative to the project. Defaults to `vaults`. |
 
 #### B. Raindrop.io API Tokens
 
@@ -254,6 +307,13 @@ Repeat for each account (personal, work) you want to back up.
 3. Click **Create test token** and copy it.
    - Personal token → `RAINDROP_PERSONAL_API_TOKEN`
    - Work token → `RAINDROP_WORK_API_TOKEN`
+
+| Variable | Purpose |
+| :--- | :--- |
+| `RAINDROP_BACKUP_DESTINATION` | Required. The folder the backups go to, normally inside the linked container (relative paths start at the project folder). |
+| `BACKUPS_TO_KEEP` | How many ZIP archives to keep per account. Defaults to `7`. |
+
+Each run writes a ZIP (JSON, CSV and HTML versions of your bookmarks) into `<RAINDROP_BACKUP_DESTINATION>/personal/` or `/work/`, and prints an integrity check comparing the bookmark count from the API with what was downloaded.
 
 #### C. Notification Credentials
 
@@ -286,41 +346,55 @@ TELEGRAM_BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
 TELEGRAM_CHAT_ID=987654321
 ```
 
+The report shows the result of the run, the host, the duration of each task, the offsite backup status, and the first part of any error output. It also attaches the status dashboard, plus the newest log matching each pattern in `EMAIL_ATTACH_LOGS` (a comma-separated list such as `run_*.log`).
+
 #### D. Other Passwords & Paths
 
 | Variable | Purpose |
 | :--- | :--- |
-| `BITWARDEN_*_PASSWORD` | Password to encrypt the exported JSON files. Choose anything — this is not your Bitwarden master password. |
-| `FFS_PATH` | **Windows only.** Path to `FreeFileSync.exe`. Can be relative to project root or absolute. |
-| `BW_CLI_PATH` | Set to `bw` or a custom path if needed. |
+| `BITWARDEN_*_PASSWORD` | Password that protects the exported JSON (used with `encrypted_json`). Choose anything. This is not your Bitwarden master password. |
+| `FFS_PATH` | **Windows only.** Path to `FreeFileSync.exe`. Can be relative to the project root or absolute. |
+| `CONTINUE_ON_ERROR` | `true` to keep running the remaining tasks after one fails. Defaults to `false`. |
+| `EMAIL_ATTACH_LOGS` | Comma-separated patterns of files in `_logs/` to attach to the report. |
 
 ---
 
 #### E. Offsite Backup (Backblaze B2)
 
-Offsite replication to Backblaze B2 is optional and automatic. If configured, the supervisor uploads the updated container to B2 and prunes old archives using in-memory credentials.
+Offsite replication to Backblaze B2 is optional and automatic. If configured, the supervisor uploads the updated container to B2 and prunes old archives using in-memory credentials. The upload is named `ctrl_s_master_YYYY-MM-DD.hc`.
 
 | Variable | Description | Default |
 | :--- | :--- | :--- |
 | `B2_APPLICATION_KEY_ID` | Your Backblaze Application Key ID (`keyID`). | *(Required for B2)* |
 | `B2_APPLICATION_KEY` | Your Backblaze Application Key secret (`applicationKey`). | *(Required for B2)* |
 | `B2_BUCKET` | The name of your private B2 bucket (e.g. `my-vault-backups`). | *(Required for B2)* |
-| `B2_KEEP_DAYS` | Retention window. Prunes archives older than this (e.g. `30d`, `90d`). | `30d` |
+| `B2_KEEP_DAYS` | Retention window. Prunes archives older than this (e.g. `30d`, `90d`). Leave it blank to disable pruning. | `30d` |
 | `B2_MIN_COPIES` | Safety floor. Never prunes below this number of recent copies. | `3` |
 
-> ℹ️ If any required B2 variables are left blank or omitted from `.env`, offsite backup is safely skipped without affecting local backups.
+* Pruning goes by the date in the file name, never by file time, and only touches files named `ctrl_s_master_*.hc`.
+* If none of the B2 variables are set, the offsite backup is skipped and local backups are unaffected. If only some are set, it's reported as a failure.
+* A failed offsite upload does not fail the run. It shows up on its own line in the report, and in the status dashboard.
 
 ---
 
-## 🔐 Security & Cleanup
+## 🔒 Security & Cleanup
 
-Credentials are never written to the project directory. Instead, the Supervisor scripts load the `.env` directly from the encrypted container **into the shell process's memory** at runtime. Every child process (Python tasks, reports) inherits these variables automatically.
+Secrets stay out of the project folder. The supervisor reads `.env` from the container and loads it into its own process environment, and every child process (the Python tasks, the report) inherits it from there.
 
-*   **No temp files:** Credentials live exclusively in the shell process's memory for the duration of the run and vanish the moment the process exits.
-*   **Container unmounts first:** All folder links (junctions/symlinks) are removed and the container is dismounted before the report is sent — the secrets needed for notifications are already in RAM and require no further disk access.
-*   **Links:** Junctions and Symlinks are removed instantly on exit, leaving no path for a threat actor to reach the encrypted data.
-*   **Fatal notification blind spot covered:** Failures that occur *before* the `.env` is loaded (e.g. wrong password, container missing) cannot use the normal report channel. A separate minimal keyfile (`.vc_notify`) outside the container covers this gap — see Step 3b above.
-* **Zero-Disk Offsite Credentials:** Backblaze B2 integration uses in-memory environment variables (`RCLONE_CONFIG_B2_*`). No `rclone.conf` or plain-text access keys are ever created or stored on the physical drive.
+* **Linux loads straight into memory.** The values go from the container into the shell with no file in between.
+* **Windows uses a short-lived temp file.** The parsed values pass through a file in `%TEMP%`, which is deleted as soon as they are loaded. It is never written to the project directory.
+* **The container closes first.** The folder links are removed and the container is dismounted *before* the report is sent. The notification credentials are already in memory, so sending it needs no disk access.
+* **Links are short-lived.** The junctions (Windows) and symlinks (Linux) into the container are removed on exit, including after a failure, so nothing is left pointing at the encrypted data.
+* **Offsite credentials stay in memory too.** Backblaze B2 is configured through `RCLONE_CONFIG_B2_*` environment variables, so no `rclone.conf` or plain-text key is ever written to disk.
+* **Failures before the container opens still notify me.** A wrong password or a missing container happens before `.env` is available, so the normal report can't fire. The small `.vc_notify` file outside the container covers that case (see Step 3b).
+
+### Known trade-offs
+
+These are deliberate choices, listed so you can weigh them:
+
+* `.vc_secret` is a plain-text keyfile. It is hardened with EFS and file permissions on Windows, and is root-only (`chmod 600`) on Linux.
+* The VeraCrypt password is passed to VeraCrypt on its command line while mounting, and the Bitwarden export password is passed to `bw export` the same way. A local user who can list processes could see them for that moment.
+* The Bitwarden SDK keeps a small login-state file under `src/` (named by `BW_STATE_FILE`). Keep it out of git.
 
 ---
 
@@ -332,7 +406,7 @@ Credentials are never written to the project directory. Instead, the Supervisor 
 ```cmd
 run.bat
 ```
-For scheduling, use **Windows Task Scheduler** to run `run.bat` on a regular basis (e.g., weekly).
+For scheduling, use **Windows Task Scheduler** to run `run.bat` on a regular basis (e.g., weekly), under the same user account that created `.vc_secret`.
 
 #### 🐧 Linux
 ```bash
@@ -341,43 +415,59 @@ sudo ./run.sh
 
 For scheduling, add to the root crontab (`sudo crontab -e`). Example for bi-weekly runs on the 2nd and 4th Friday:
 ```bash
-0 4 8-14,22-28 * *[ "$(date +\%u)" = 5 ] && /path/to/ctrl_s_master/run.sh
+0 4 8-14,22-28 * * [ "$(date +\%u)" = 5 ] && /path/to/ctrl_s_master/run.sh
 ```
 
-*Note: The status dashboard and notification reports are "Config-Aware." If a vault (Work or Personal) is not configured in your .env, the task will be automatically skipped and hidden from the report to keep your dashboard clean.*
+*Note: The status dashboard and notification reports are "Config-Aware". If a vault (Work or Personal) is not configured in your .env, the task is skipped and hidden from the report to keep your dashboard clean.*
+
+Logs for every run are written to `_logs/`, and the latest results are kept in `status.json` and `status_dashboard.md`.
+
+---
+
+### Tasks
+
+The engine's tasks can be run by name, or all at once with `run-all`:
+
+| Task | What it does |
+| :--- | :--- |
+| `raindrop-personal`, `raindrop-work` | Back up bookmarks. |
+| `export-personal`, `export-work` | Export Bitwarden vaults. |
+| `ffs-<name>` (Windows) | A FreeFileSync job from `ffs_jobs/`. |
+| `rsync-<name>` (Linux) | An rsync job from `rsync_jobs/`. |
+
+The supervisors run `run-all`. The engine only gets its credentials from the supervisor, so to run one task by hand, the variables from `.env` must already be in your environment.
 
 ---
 
 ### Dry Run
 
-Simulates a full run in a temporary directory without touching the real container or sending notifications. Useful for debugging.
+A dry run rehearses the tasks without touching the real data or sending anything:
 
-#### 🪟 Windows
-```cmd
-:: Run everything
-python src\master_automation.py run-tasks run-all --dry-run
-
-:: Run a specific vault only (e.g., Personal Bitwarden)
-python src\master_automation.py run-tasks export-personal --dry-run
-```
+* Bitwarden exports are written to a throwaway folder, which is deleted afterwards.
+* rsync jobs run with `--dry-run`, and FreeFileSync jobs are only listed.
+* No container backup, no B2 upload and no report happens.
+* It still contacts Bitwarden's API, and Raindrop backups still write to their real destination.
 
 #### 🐧 Linux
 ```bash
-# Run everything
 sudo ./run.sh dry
+```
+This still mounts the real container, because the secrets are in it.
 
-# Run a specific vault only (e.g., Work Raindrop)
-source venv/bin/activate
-python3 src/master_automation.py run-tasks raindrop-work --dry-run
+#### 🪟 Windows
+`run.bat` has no dry mode. You can run the engine directly, but it only sees credentials that are already in your environment. Without them every task reports as not configured and is skipped:
+```cmd
+python src\master_automation.py run-tasks run-all --dry-run
 ```
 
 ---
 
 ### Updating Dependencies
 
-To update your environment, download the latest CLI tools, or repair a broken setup, run the setup script in a **Command Prompt as Administrator** with the force flag:
+To update your environment, download the latest CLI tools, or repair a broken setup, run the setup script with the force flag:
 
 #### 🪟 Windows
+In a **Command Prompt as Administrator**:
 ```cmd
 setup.bat /f
 ```
@@ -440,10 +530,10 @@ Mount `vaults.hc` manually and create the new folder inside:
 ### 2. Update the Supervisor Scripts
 Add the folder name to the `SECURE_FOLDERS` list at the top of your supervisor scripts. The scripts will handle the creation and removal of the links automatically.
 
-- **Windows (`run.bat`):**  
+- **Windows (`run.bat`):**
   `set "SECURE_FOLDERS=vaults 2fa backups another_bak"`
 
-- **Linux (`run.sh`):**  
+- **Linux (`run.sh`):**
   `SECURE_FOLDERS=("vaults" "2fa" "backups" "another_bak")`
 
 ### 3. Create the Sync Job
@@ -466,7 +556,7 @@ ctrl_s_master/
 ├── 🧪 tests.bat / tests.sh              # Test suite launcher.
 │
 ├── 📁 src/
-│   ├── 🐍 master_automation.py           # The Engine: orchestrates all tasks.
+│   ├── 🐍 master_automation.py           # The Engine: runs all tasks, backups and reports.
 │   └── 📁 _tools/
 │       ├── 📁 ffs_jobs/                  # Drop Windows FreeFileSync batch jobs here.
 │       ├── 📁 rsync_jobs/                # Drop Linux rsync JSON config files here.
@@ -482,17 +572,17 @@ ctrl_s_master/
 ├── 📊 status.json                        # (Gitignored) Machine-readable run history.
 ├── 📄 status_dashboard.md                # (Gitignored) Human-readable run dashboard.
 │
-│   — Created at runtime, removed after —
+│   Created at runtime, removed after:
 ├── 🔗 vaults/                            # Junction (Win) / Symlink (Lin) into container.
 ├── 🔗 2fa/                               # Junction (Win) / Symlink (Lin) into container.
 ├── 🔗 backups/                           # Junction (Win) / Symlink (Lin) into container.
 │
-│   — External —
-├── 🔑 ~/.vc_secret                       # Auto-unlocker keyfile (user home on both OSes).
+│   External:
+├── 🔑 ~/.vc_secret                       # Auto-unlocker keyfile (user home on Windows, /root on Linux).
 └── 🔑 ~/.vc_notify                       # Fatal pre-load notification credentials (Telegram only).
 ```
 
 ---
-	
+
 ### Author
-This project was created and is maintained by myself - [gravi-ctrl](https://github.com/gravi-ctrl).
+This project was created and is maintained by me, [gravi-ctrl](https://github.com/gravi-ctrl).

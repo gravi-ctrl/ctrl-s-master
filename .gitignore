@@ -22,6 +22,7 @@
 **/backups/
 **/status_dashboard.md
 **/status.json
+**/statefile.json
 
 # breakglass/: only the scripts and the README belong in git
 breakglass/*
