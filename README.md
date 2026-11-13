@@ -221,8 +221,6 @@ BACKUP_DEST="/data/assets/syncthing/My_Shit"
 
 The copy is named `ctrl_s_master_YYYY-MM-DD.hc` and replaces any older `ctrl_s_master_*.hc` in that folder, so the folder always holds one copy.
 
-> ℹ️ If `BACKUP_DEST` doesn't exist, `run.bat` treats it as an error, while `run.sh` skips the local copy without complaint. Double-check the path.
-
 ---
 
 ## ⚙️ Sync Job Configuration
