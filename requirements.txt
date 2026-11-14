@@ -6,9 +6,6 @@ requests
 bitwarden-sdk
 cryptography
 argon2-cffi
-pykeepass
-python-dateutil
-lxml
 
 # Development & Testing
 pytest
