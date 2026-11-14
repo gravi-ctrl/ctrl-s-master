@@ -40,7 +40,7 @@ echo "$LOG_FILE"
     # --- 1. Install System Dependencies ---
     echo "[1/6] Checking System Prerequisites..."
     sudo apt-get update -y
-    sudo apt-get install -y software-properties-common coreutils python3-venv python3-pip unzip rsync curl dos2unix rclone
+    sudo apt-get install -y software-properties-common coreutils python3-venv python3-pip unzip rsync curl wget dos2unix rclone
 
     # --- 2. Install VeraCrypt ---
     echo "[2/6] Checking VeraCrypt..."
