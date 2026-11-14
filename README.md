@@ -143,15 +143,18 @@ icacls "%USERPROFILE%\.vc_notify" /inheritance:r /grant "%USERNAME%:R" /grant "S
 ```
 
 #### 🐧 Linux
-Create `/root/.vc_notify` and restrict it:
+Create `/root/.vc_notify`:
 ```bash
 sudo nano /root/.vc_notify
-sudo chmod 600 /root/.vc_notify
 ```
 Contents:
 ```
 BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
 CHAT_ID=987654321
+```
+Then restrict it:
+```bash
+sudo chmod 600 /root/.vc_notify
 ```
 
 > ℹ️ This file is intentionally minimal: two lines, one credential, one purpose. It does not replace or duplicate your main `.env`. If the file does not exist the supervisor continues silently, so this step is optional but strongly recommended for unattended scheduled runs.
@@ -221,6 +224,8 @@ BACKUP_DEST="/data/assets/syncthing/My_Shit"
 
 The copy is named `ctrl_s_master_YYYY-MM-DD.hc` and replaces any older `ctrl_s_master_*.hc` in that folder, so the folder always holds one copy.
 
+> ℹ️ If `BACKUP_DEST` doesn't exist, or the copy fails, the run is reported as a failure. The B2 upload still goes ahead.
+
 ---
 
 ## ⚙️ Sync Job Configuration
@@ -288,12 +293,12 @@ In every variable name, `*` stands for `PERSONAL` or `WORK`. A vault whose `BW_*
 | Variable | Purpose |
 | :--- | :--- |
 | `BW_ACCESS_TOKEN` | The machine account's access token (step 1). |
-| `BW_API_URL`, `BW_IDENTITY_URL` | Your Bitwarden cloud endpoints (for example `https://api.bitwarden.com` and `https://identity.bitwarden.com`, or the `.eu` equivalents). |
+| `BW_API_URL`, `BW_IDENTITY_URL` | Your Bitwarden cloud endpoints. `.env.example` uses `https://vault.bitwarden.com/api` and `https://vault.bitwarden.com/identity` (EU accounts use `vault.bitwarden.eu`). |
 | `BW_STATE_FILE` | Where the Bitwarden SDK keeps its login state, relative to `src/`. |
 | `BW_CLI_PATH` | `bw` to use the one on your `PATH`, or a path to a specific binary. |
 | `BW_*_OUTPUT_FILENAME` | Base name of the export, e.g. `bitwarden_personal.json`. Required. Files are written to `vaults/` as `<number>-<name>_<dd-mm-yyyy>.json`, with the number counting up. |
-| `BW_*_EXPORT_FORMAT` | `json` (the default) or `encrypted_json`. **Use `encrypted_json`** for a password-protected export. |
-| `BW_SERIALS_TO_KEEP` | How many exports to keep per vault. `0` (the default) keeps them all. |
+| `BW_*_EXPORT_FORMAT` | `encrypted_json` (what `.env.example` sets), `json`, `csv` or `zip`. If the variable is missing, the engine falls back to plain `json`. **Use `encrypted_json`** for a password-protected export, and stay with the JSON formats, since the numbering and rotation assume `.json` file names. |
+| `BW_SERIALS_TO_KEEP` | How many exports to keep per vault. `0` keeps them all, and it's the default if unset (`.env.example` uses `5`). |
 | `BW_VAULTS_DIR` | Output folder, relative to the project. Defaults to `vaults`. |
 
 #### B. Raindrop.io API Tokens
@@ -309,7 +314,7 @@ Repeat for each account (personal, work) you want to back up.
 | Variable | Purpose |
 | :--- | :--- |
 | `RAINDROP_BACKUP_DESTINATION` | Required. The folder the backups go to, normally inside the linked container (relative paths start at the project folder). |
-| `BACKUPS_TO_KEEP` | How many ZIP archives to keep per account. Defaults to `7`. |
+| `BACKUPS_TO_KEEP` | How many ZIP archives to keep per account. `0` keeps them all. Defaults to `7` if unset (`.env.example` uses `2`). |
 
 Each run writes a ZIP (JSON, CSV and HTML versions of your bookmarks) into `<RAINDROP_BACKUP_DESTINATION>/personal/` or `/work/`, and prints an integrity check comparing the bookmark count from the API with what was downloaded.
 
@@ -318,7 +323,7 @@ Each run writes a ZIP (JSON, CSV and HTML versions of your bookmarks) into `<RAI
 Configure one or both channels. If both are set in `.env`, both will fire.
 
 ##### 🪟 Email (default on Windows, optional on Linux)
-Use a Gmail App Password to avoid storing your real account password.
+Use a Gmail App Password to avoid storing your real account password. Port `465` (implicit SSL) is the supported setup.
 
 1. Ensure **2-Step Verification** is enabled on your Google account.
 2. Go to [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords).
@@ -350,10 +355,12 @@ The report shows the result of the run, the host, the duration of each task, the
 
 | Variable | Purpose |
 | :--- | :--- |
-| `BITWARDEN_*_PASSWORD` | Password that protects the exported JSON (used with `encrypted_json`). Choose anything. This is not your Bitwarden master password. |
+| `BITWARDEN_*_PASSWORD` | Password that protects the exported JSON (used with `encrypted_json`). Choose anything. This is not your Bitwarden master password. The engine requires it for every configured vault. |
 | `FFS_PATH` | **Windows only.** Path to `FreeFileSync.exe`. Can be relative to the project root or absolute. |
-| `CONTINUE_ON_ERROR` | `true` to keep running the remaining tasks after one fails. Defaults to `false`. |
-| `EMAIL_ATTACH_LOGS` | Comma-separated patterns of files in `_logs/` to attach to the report. |
+| `CONTINUE_ON_ERROR` | `true` to keep running the remaining tasks after one fails and report every failure. Defaults to `false` (stop at the first one) if unset; `.env.example` sets `true`. |
+| `EMAIL_ATTACH_LOGS` | Comma-separated patterns of files in `_logs/` to attach to the report (the newest match for each pattern). |
+| `STATUS_FILE`, `STATUS_DASHBOARD_FILE` | Keep the defaults. They must stay outside the container, because the report is built after it has been closed. |
+| `RAINDROP_BACKUP_SCRIPT_PATH`, `BW_EXPORT_SCRIPT_PATH` | Paths to the two helper scripts. Keep the defaults. |
 
 ---
 
@@ -366,7 +373,7 @@ Offsite replication to Backblaze B2 is optional and automatic. If configured, th
 | `B2_APPLICATION_KEY_ID` | Your Backblaze Application Key ID (`keyID`). | *(Required for B2)* |
 | `B2_APPLICATION_KEY` | Your Backblaze Application Key secret (`applicationKey`). | *(Required for B2)* |
 | `B2_BUCKET` | The name of your private B2 bucket (e.g. `my-vault-backups`). | *(Required for B2)* |
-| `B2_KEEP_DAYS` | Retention window. Prunes archives older than this (e.g. `30d`, `90d`). Leave it blank to disable pruning. | `30d` |
+| `B2_KEEP_DAYS` | Retention window. Prunes archives older than this (e.g. `30d`, `90d`). Leave it blank to disable pruning. | `30d` (`.env.example` uses `90d`) |
 | `B2_MIN_COPIES` | Safety floor. Never prunes below this number of recent copies. | `3` |
 
 * Pruning goes by the date in the file name, never by file time, and only touches files named `ctrl_s_master_*.hc`.
