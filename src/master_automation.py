@@ -820,6 +820,7 @@ def main():
             if dry_run_dir.exists(): shutil.rmtree(dry_run_dir)
             dry_run_dir.mkdir()
             os.environ["DRY_RUN_VAULTS_DIR"] = str(dry_run_dir)
+            os.environ["DRY_RUN_BACKUP_DEST"] = str(dry_run_dir / "raindrop")
 
         start = datetime.now()
         task_list = (
