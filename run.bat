@@ -39,7 +39,7 @@ set "MASTER_SCRIPT=%SCRIPT_DIR%src\master_automation.py"
 
 :: Temp file paths for env loading (in %TEMP% so no permission issues)
 set "ENV_PY=%TEMP%\vc_%timestamp%.py"
-set "ENV_OUT=%TEMP%\vc_%timestamp%.txt"
+set "ENV_OUT=%MOUNT_DRIVE%:\.vc_env_%timestamp%.txt"
 
 :: Clean up any old failure logs before starting
 del /q "%LOG_DIR%failure_details.log" 2>nul
@@ -76,6 +76,9 @@ if %errorlevel% neq 0 (
     call :notify_fatal "Failed to mount VeraCrypt container"
     goto emergency_cleanup
 )
+
+:: Remove any secrets file left inside the container by a hard-killed run
+del /q "%MOUNT_DRIVE%:\.vc_env_*.txt" 2>nul
 
 :: --- 3. LINK FOLDERS ---
 echo Linking folders... >> "%LOG_FILE%"
