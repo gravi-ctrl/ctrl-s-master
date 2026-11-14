@@ -80,6 +80,13 @@ if %errorlevel% neq 0 (
 :: Remove any secrets file left inside the container by a hard-killed run
 del /q "%MOUNT_DRIVE%:\.vc_env_*.txt" 2>nul
 
+:: Dynamically grab BW_STATE_FILE from the .env on disk to clean up previous crashes
+set "_PREV_BW_STATE="
+for /f "usebackq tokens=1* delims==" %%A in (`findstr /B /C:"BW_STATE_FILE=" "%MOUNT_DRIVE%:\.env" 2^>nul`) do (
+    set "_PREV_BW_STATE=%%B"
+)
+call :delete_bw_state "%_PREV_BW_STATE%"
+
 :: --- 3. LINK FOLDERS ---
 echo Linking folders... >> "%LOG_FILE%"
 for %%F in (%SECURE_FOLDERS%) do (
@@ -130,12 +137,15 @@ echo Running Python Engine... >> "%LOG_FILE%"
 set "PYTHON_EXIT_CODE=!errorlevel!"
 
 :: --- 5. UNMOUNT ---
-:: Secrets remain alive in this cmd process's environment (RAM).
-:: No .temp_env_handoff file is needed -- send-report (step 7) runs in this
-:: same process and inherits all variables automatically.
 echo Unmounting container... >> "%LOG_FILE%"
+
+:: 1. Dynamically delete the ephemeral Bitwarden state file
+call :delete_bw_state "%BW_STATE_FILE%"
+
+:: 2. Remove the local junction links
 for %%F in (%SECURE_FOLDERS%) do ( rmdir /q "%SCRIPT_DIR%%%F" 2>nul )
 
+:: 3. Force Dismount
 "%VERACRYPT_EXE%" /d %MOUNT_DRIVE% /q /s >> "%LOG_FILE%" 2>&1
 
 :: --- 6. BACKUP CONTAINER ---
@@ -191,6 +201,9 @@ echo [!] Emergency cleanup triggered due to fatal error. >> "%LOG_FILE%"
 del /q "%ENV_PY%" 2>nul
 del /q "%ENV_OUT%" 2>nul
 
+:: Dynamically delete the ephemeral Bitwarden state file (if loaded)
+call :delete_bw_state "%BW_STATE_FILE%"
+
 :: Remove Links
 for %%F in (%SECURE_FOLDERS%) do ( rmdir /q "%SCRIPT_DIR%%%F" 2>nul )
 
@@ -225,4 +238,19 @@ curl -fsS "https://api.telegram.org/bot%_NF_TOKEN%/sendMessage" ^
      > nul 2>&1
 set "_NF_TOKEN="
 set "_NF_CHATID="
+exit /b 0
+
+:: =================================================================
+:: --- DYNAMIC BITWARDEN STATE CLEANUP ---
+:: Normalizes the path and deletes the file from the mounted drive.
+:: =================================================================
+:delete_bw_state
+if "%~1"=="" exit /b 0
+set "_BW_STATE=%~1"
+:: Replace forward slashes with backslashes
+set "_BW_STATE=!_BW_STATE:/=\!"
+:: Remove leading backslash if present (e.g., /vaults/... -> vaults/...)
+if "!_BW_STATE:~0,1!"=="\" set "_BW_STATE=!_BW_STATE:~1!"
+:: Delete the file from the mounted drive
+del /q "%MOUNT_DRIVE%:\!_BW_STATE!" 2>nul
 exit /b 0
