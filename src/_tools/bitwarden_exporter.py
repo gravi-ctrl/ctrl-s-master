@@ -65,7 +65,7 @@ def get_config(vault_type: str, root_path: Path):
 
     required_vars =[
         "BW_CLI_PATH", "BW_API_URL", "BW_IDENTITY_URL", "BW_ACCESS_TOKEN",
-        "BW_STATE_FILE", f"{prefix}CLIENT_SECRET_UUID",
+        "BW_STATE_FILE", f"{prefix}CLIENT_SECRET_UUID", f"{prefix}OUTPUT_FILENAME",
         f"{prefix}MASTER_PASSWORD_UUID", f"BITWARDEN_{vault_type.upper()}_PASSWORD"
     ]
     missing_vars =[var for var in required_vars if not os.getenv(var)]
