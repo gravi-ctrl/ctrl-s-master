@@ -36,6 +36,7 @@
             <!-- ctrl_s_master: Secrets & Configs -->
             <Item>\ctrl_s_master\.env</Item>
             <Item>*\.env</Item>
+            <Item>*\statefile.json<\Item>
 
             <!-- ctrl_s_master: Logs, Temp & Dry-run -->
             <Item>*.log</Item>
