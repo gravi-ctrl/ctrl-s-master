@@ -97,7 +97,7 @@ def get_config(vault_type: str, root_path: Path):
     config["api_url"] = os.getenv("BW_API_URL")
     config["identity_url"] = os.getenv("BW_IDENTITY_URL")
     config["access_token"] = os.getenv("BW_ACCESS_TOKEN")
-    config["state_file"] = root_path / "src" / os.getenv("BW_STATE_FILE")
+    config["state_file"] = root_path / os.getenv("BW_STATE_FILE")
     try:
         config["serials_to_keep"] = int(os.getenv("BW_SERIALS_TO_KEEP", "0"))
     except (ValueError, TypeError):
