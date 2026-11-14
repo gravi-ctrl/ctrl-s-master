@@ -154,9 +154,9 @@ if [ "$MODE" == "NORMAL" ]; then
     if [ $PYTHON_EXIT_CODE -eq 0 ]; then
         echo "Starting Local Container Backup..." >> "$LOG_FILE"
         if [ -d "$BACKUP_DEST" ]; then
-            find "$BACKUP_DEST" -maxdepth 1 -name "ctrl_s_master_*.hc" -type f -not -name "$BACKUP_FILENAME" -delete
             if cp "$VC_CONTAINER" "$BACKUP_DEST/$BACKUP_FILENAME" >> "$LOG_FILE" 2>&1; then
                 echo "Container Backup Successful." >> "$LOG_FILE"
+                find "$BACKUP_DEST" -maxdepth 1 -name "ctrl_s_master_*.hc" -type f -not -name "$BACKUP_FILENAME" -delete
             else
                 echo "❌ ERROR: Failed to copy container file to destination." >> "$LOG_FILE"
                 FINAL_EXIT_CODE=1
