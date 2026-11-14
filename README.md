@@ -294,7 +294,7 @@ In every variable name, `*` stands for `PERSONAL` or `WORK`. A vault whose `BW_*
 | :--- | :--- |
 | `BW_ACCESS_TOKEN` | The machine account's access token (step 1). |
 | `BW_API_URL`, `BW_IDENTITY_URL` | Your Bitwarden cloud endpoints. `.env.example` uses `https://vault.bitwarden.com/api` and `https://vault.bitwarden.com/identity` (EU accounts use `vault.bitwarden.eu`). |
-| `BW_STATE_FILE` | Where the Bitwarden SDK keeps its login state, relative to `src/`. |
+| `BW_STATE_FILE` | Where the Bitwarden SDK keeps its login state, relative to the project folder. `.env.example` points it into `vaults/`, so it stays inside the container. |
 | `BW_CLI_PATH` | `bw` to use the one on your `PATH`, or a path to a specific binary. |
 | `BW_*_OUTPUT_FILENAME` | Base name of the export, e.g. `bitwarden_personal.json`. Required. Files are written to `vaults/` as `<number>-<name>_<dd-mm-yyyy>.json`, with the number counting up. |
 | `BW_*_EXPORT_FORMAT` | `encrypted_json` (what `.env.example` sets), `json`, `csv` or `zip`. If the variable is missing, the engine falls back to plain `json`. **Use `encrypted_json`** for a password-protected export, and stay with the JSON formats, since the numbering and rotation assume `.json` file names. |
