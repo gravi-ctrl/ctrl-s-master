@@ -399,7 +399,6 @@ These are deliberate choices, listed so you can weigh them:
 
 * `.vc_secret` is a plain-text keyfile. It is hardened with EFS and file permissions on Windows, and is root-only (`chmod 600`) on Linux.
 * The VeraCrypt password is passed to VeraCrypt on its command line while mounting, and the Bitwarden export password is passed to `bw export` the same way. A local user who can list processes could see them for that moment.
-* The Bitwarden SDK keeps a small login-state file under `src/` (named by `BW_STATE_FILE`). Keep it out of git.
 
 ---
 
