@@ -168,7 +168,8 @@ if [ "$MODE" == "NORMAL" ]; then
 
         # --- Offsite Backup (Backblaze B2 via rclone) ---
         echo "Starting Offsite Container Backup..." >> "$LOG_FILE"
-        python3 "$PROJECT_DIR/src/master_automation.py" backup-b2 >> "$LOG_FILE" 2>&1
+        python3 "$PROJECT_DIR/src/master_automation.py" backup-b2 >> "$LOG_FILE" 2>&1 \
+            || echo "WARNING: offsite backup failed (see status.json)" >> "$LOG_FILE"
     fi
 fi
 
