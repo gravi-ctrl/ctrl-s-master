@@ -80,12 +80,6 @@ if %errorlevel% neq 0 (
 :: Remove any secrets file left inside the container by a hard-killed run
 del /q "%MOUNT_DRIVE%:\.vc_env_*.txt" 2>nul
 
-:: Dynamically grab BW_STATE_FILE from the .env on disk to clean up previous crashes
-set "_PREV_BW_STATE="
-for /f "usebackq tokens=1* delims==" %%A in (`findstr /B /C:"BW_STATE_FILE=" "%MOUNT_DRIVE%:\.env" 2^>nul`) do (
-    set "_PREV_BW_STATE=%%B"
-)
-call :delete_bw_state "%_PREV_BW_STATE%"
 
 :: --- 3. LINK FOLDERS ---
 echo Linking folders... >> "%LOG_FILE%"
@@ -126,6 +120,9 @@ if not defined _VC_ENV_OK (
     goto emergency_cleanup
 )
 set "_VC_ENV_OK="
+
+:: Start clean: remove any state file a crashed run left behind
+call :delete_bw_state "%BW_STATE_FILE%"
 
 :: --- 4. RUN PYTHON TASKS ---
 :: From this point on all secrets are in RAM. Failures beyond here are handled

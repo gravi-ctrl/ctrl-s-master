@@ -387,11 +387,12 @@ Offsite replication to Backblaze B2 is optional and automatic. If configured, th
 Secrets stay out of the project folder. The supervisor reads `.env` from the container and loads it into its own process environment, and every child process (the Python tasks, the report) inherits it from there.
 
 * **Linux loads straight into memory.** The values go from the container into the shell with no file in between.
-* **Windows uses a short-lived file inside the container. The parsed values pass through a file on the mounted container (never on the host disk), which is deleted as soon as they are loaded.
+* **Windows uses a short-lived file inside the container.** The parsed values pass through a file on the mounted container (never on the host disk), which is deleted as soon as they are loaded.
 * **The container closes first.** The folder links are removed and the container is dismounted *before* the report is sent. The notification credentials are already in memory, so sending it needs no disk access.
 * **Links are short-lived.** The junctions (Windows) and symlinks (Linux) into the container are removed on exit, including after a failure, so nothing is left pointing at the encrypted data.
 * **Offsite credentials stay in memory too.** Backblaze B2 is configured through `RCLONE_CONFIG_B2_*` environment variables, so no `rclone.conf` or plain-text key is ever written to disk.
 * **Failures before the container opens still notify me.** A wrong password or a missing container happens before `.env` is available, so the normal report can't fire. The small `.vc_notify` file outside the container covers that case (see Step 3b).
+* **The Bitwarden login state is not kept.** The SDK’s state file lives inside the container, and it’s deleted after every run and cleared again at the start of the next.
 
 ### Known trade-offs
 
@@ -447,10 +448,10 @@ The supervisors run `run-all`. The engine only gets its credentials from the sup
 
 A dry run rehearses the tasks without touching the real data or sending anything:
 
-* Bitwarden exports are written to a throwaway folder, which is deleted afterwards.
+* Bitwarden exports and Raindrop backups are written to a throwaway folder, which is deleted afterwards.
 * rsync jobs run with `--dry-run`, and FreeFileSync jobs are only listed.
 * No container backup, no B2 upload and no report happens.
-* It still contacts Bitwarden's API.
+* It still contacts Bitwarden's API, so it exercises your real credentials.
 
 #### 🐧 Linux
 ```bash

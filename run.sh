@@ -55,13 +55,16 @@ notify_fatal() {
 cleanup() {
     echo "Running emergency/final cleanup..." >> "$LOG_FILE"
 
-    # 1. Remove folder symlinks (rm -rf on a symlink removes the link,
+    # 1. Remove BW_STATE_FILE
+    [ -n "${BW_STATE_FILE:-}" ] && rm -f "${PROJECT_DIR:?}/$BW_STATE_FILE" 2>/dev/null
+
+    # 2. Remove folder symlinks (rm -rf on a symlink removes the link,
     #    never follows into the target — the container data is safe)
     for folder in "${SECURE_FOLDERS[@]}"; do
         rm -rf "${PROJECT_DIR:?}/$folder" 2>/dev/null
     done
 
-    # 2. Force dismount container
+    # 3. Force dismount container
     sudo veracrypt --text --non-interactive --dismount "$VC_CONTAINER" >/dev/null 2>&1
 }
 # EXIT = normal end, INT = Ctrl+C, TERM = kill command, HUP = SSH disconnect
@@ -123,6 +126,8 @@ if [ -z "$_VC_ENV_OK" ]; then
 fi
 unset _VC_ENV_OK
 
+[ -n "${BW_STATE_FILE:-}" ] && rm -f "${PROJECT_DIR:?}/$BW_STATE_FILE"
+
 # --- 4. RUN PYTHON TASKS ---
 # From this point on all secrets are in RAM. Failures beyond here are handled
 # by the normal send-report flow which already has notification credentials.
@@ -138,12 +143,14 @@ PYTHON_EXIT_CODE=$?
 
 # --- 5. UNMOUNT ---
 # Secrets remain alive in this shell's environment (RAM).
-# No .temp_env_handoff file is needed -- send-report (step 7) runs in this
-# same shell process and inherits all variables automatically.
 echo "Unmounting container..." >> "$LOG_FILE"
+
+[ -n "${BW_STATE_FILE:-}" ] && rm -f "${PROJECT_DIR:?}/$BW_STATE_FILE"
+
 for folder in "${SECURE_FOLDERS[@]}"; do
     rm -rf "${PROJECT_DIR:?}/$folder" 2>/dev/null
 done
+
 # shellcheck disable=SC2024
 sudo veracrypt --text --non-interactive --dismount "$VC_CONTAINER" >> "$LOG_FILE" 2>&1
 
