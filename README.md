@@ -387,7 +387,7 @@ Offsite replication to Backblaze B2 is optional and automatic. If configured, th
 Secrets stay out of the project folder. The supervisor reads `.env` from the container and loads it into its own process environment, and every child process (the Python tasks, the report) inherits it from there.
 
 * **Linux loads straight into memory.** The values go from the container into the shell with no file in between.
-* **Windows uses a short-lived temp file.** The parsed values pass through a file in `%TEMP%`, which is deleted as soon as they are loaded. It is never written to the project directory.
+* **Windows uses a short-lived file inside the container. The parsed values pass through a file on the mounted container (never on the host disk), which is deleted as soon as they are loaded.
 * **The container closes first.** The folder links are removed and the container is dismounted *before* the report is sent. The notification credentials are already in memory, so sending it needs no disk access.
 * **Links are short-lived.** The junctions (Windows) and symlinks (Linux) into the container are removed on exit, including after a failure, so nothing is left pointing at the encrypted data.
 * **Offsite credentials stay in memory too.** Backblaze B2 is configured through `RCLONE_CONFIG_B2_*` environment variables, so no `rclone.conf` or plain-text key is ever written to disk.
@@ -451,7 +451,7 @@ A dry run rehearses the tasks without touching the real data or sending anything
 * Bitwarden exports are written to a throwaway folder, which is deleted afterwards.
 * rsync jobs run with `--dry-run`, and FreeFileSync jobs are only listed.
 * No container backup, no B2 upload and no report happens.
-* It still contacts Bitwarden's API, and Raindrop backups still write to their real destination.
+* It still contacts Bitwarden's API.
 
 #### 🐧 Linux
 ```bash
