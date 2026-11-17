@@ -28,7 +28,7 @@ import shutil
 import struct
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
