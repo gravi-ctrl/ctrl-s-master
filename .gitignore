@@ -25,7 +25,6 @@
 **/.bw_state.json
 
 # breakglass/: only the scripts and the README belong in git
-breakglass/*
 !breakglass/wheels/*.whl
 !breakglass/*.py
 !breakglass/README.md

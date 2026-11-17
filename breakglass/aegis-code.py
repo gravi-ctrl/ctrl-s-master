@@ -261,7 +261,7 @@ def enable_ansi():
 
 def clock_line():
     local = datetime.now().astimezone()
-    utc = local.astimezone(timezone.utc)
+    utc = local.astimezone(datetime.UTC)
     return (f"system clock: {local:%Y-%m-%d %H:%M:%S} (offset {local:%z}, "
             f"UTC {utc:%H:%M:%S}). Compare it with another device.")
 
