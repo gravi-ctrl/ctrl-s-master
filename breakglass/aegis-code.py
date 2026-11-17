@@ -282,18 +282,29 @@ def show_once(entries):
 
 def show_live(entries):
     enable_ansi()
-    preamble(entries)
+
+    if any(e.get("type") == "hotp" for e in entries):
+        print("note: HOTP counters in a backup can be stale; the next codes are shown too.",
+              file=sys.stderr)
+
     print("Live mode, Ctrl+C to quit.\n", file=sys.stderr)
-    n = len(entries)
+
+    n = len(entries) + 1
     first = True
     try:
         while True:
             now = time.time()
             if not first:
                 sys.stdout.write(f"\033[{n}A")
+
             width = max(20, shutil.get_terminal_size((80, 24)).columns - 1)
+
+            # Redraw the clock and codes together so the clock never interferes with the codes.
+            sys.stdout.write("\033[2K\r" + clock_line()[:width] + "\n")
+
             for ln in render(entries, now, NEXT_BELOW_LIVE):  # clip: a wrapped row breaks the redraw
                 sys.stdout.write("\033[2K\r" + ln[:width] + "\n")
+
             sys.stdout.flush()
             first = False
             time.sleep(1 - (time.time() % 1) + 0.02)
