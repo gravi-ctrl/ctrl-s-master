@@ -28,7 +28,7 @@ import shutil
 import struct
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, UTC
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -261,7 +261,7 @@ def enable_ansi():
 
 def clock_line():
     local = datetime.now().astimezone()
-    utc = local.astimezone(datetime.UTC)
+    utc = local.astimezone(UTC)
     return (f"system clock: {local:%Y-%m-%d %H:%M:%S} (offset {local:%z}, "
             f"UTC {utc:%H:%M:%S}). Compare it with another device.")
 
