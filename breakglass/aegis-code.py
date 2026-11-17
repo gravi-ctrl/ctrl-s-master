@@ -24,9 +24,11 @@ import json
 import math
 import os
 import re
+import shutil
 import struct
 import sys
 import time
+from datetime import datetime, timezone
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -234,8 +236,7 @@ def fields(entry, now, next_below):
         return name, "-", f"{entry.get('type')} not supported", ""
     if "codes" in r:
         c = r["codes"]
-        return (name, c[0], f"HOTP #{r['counter']}",
-                f"next: {c[1]}, {c[2]} (stored counter may be stale)")
+        return name, c[0], f"HOTP #{r['counter']}", f"next: {c[1]}, {c[2]}"
     left = max(1, math.ceil(r["left"]))
     filled = round(10 * r["left"] / r["period"])
     timer = f"[{'#' * filled}{'-' * (10 - filled)}] {left:>2}s"
@@ -258,13 +259,30 @@ def enable_ansi():
         os.system("")  # turns on ANSI escape handling in Windows terminals
 
 
+def clock_line():
+    local = datetime.now().astimezone()
+    utc = local.astimezone(timezone.utc)
+    return (f"system clock: {local:%Y-%m-%d %H:%M:%S} (offset {local:%z}, "
+            f"UTC {utc:%H:%M:%S}). Compare it with another device.")
+
+
+def preamble(entries):
+    """Context printed to stderr before the codes: the clock to check, HOTP caveat."""
+    print(clock_line(), file=sys.stderr)
+    if any(e.get("type") == "hotp" for e in entries):
+        print("note: HOTP counters in a backup can be stale; the next codes are shown too.",
+              file=sys.stderr)
+
+
 def show_once(entries):
+    preamble(entries)
     now = time.time()
     print("\n".join(render(entries, now, NEXT_BELOW_ONCE)))
 
 
 def show_live(entries):
     enable_ansi()
+    preamble(entries)
     print("Live mode, Ctrl+C to quit.\n", file=sys.stderr)
     n = len(entries)
     first = True
@@ -273,8 +291,9 @@ def show_live(entries):
             now = time.time()
             if not first:
                 sys.stdout.write(f"\033[{n}A")
-            for ln in render(entries, now, NEXT_BELOW_LIVE):
-                sys.stdout.write("\033[2K\r" + ln + "\n")
+            width = max(20, shutil.get_terminal_size((80, 24)).columns - 1)
+            for ln in render(entries, now, NEXT_BELOW_LIVE):  # clip: a wrapped row breaks the redraw
+                sys.stdout.write("\033[2K\r" + ln[:width] + "\n")
             sys.stdout.flush()
             first = False
             time.sleep(1 - (time.time() % 1) + 0.02)
@@ -372,6 +391,6 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, EOFError):
         print()
         sys.exit(130)

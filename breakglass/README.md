@@ -7,6 +7,13 @@ package (and `argon2-cffi` for one script). None of it imports anything from `sr
 automation to be set up. Copy this folder to a USB stick or into your encrypted
 container and it works anywhere Python does.
 
+   No internet? If the dir `wheels` exists, use:
+   ```cmd
+   python -m pip install --no-index --find-links wheels cryptography argon2-cffi
+   ```
+   > Can be downloaded beforehand using:
+   > `python -m pip download cryptography argon2-cffi -d wheels`
+
 ```
 pip install -U cryptography     # 44.0 or newer (Argon2id, used by the recovery tools)
 pip install argon2-cffi         # only for bw-decrypt.py, and only for Argon2id exports

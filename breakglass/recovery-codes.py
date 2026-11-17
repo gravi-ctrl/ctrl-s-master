@@ -34,7 +34,9 @@ write a decryptor if this script is ever lost)
     28      12    nonce
     40      ...   AES-256-GCM ciphertext + 16-byte tag
 
-    key        = Argon2id(password as UTF-8, salt, length=32, t, lanes=p, memory)
+    key        = Argon2id(password, salt, length=32, t, lanes=p, memory)
+                 where password = Unicode NFKC-normalized, then encoded as UTF-8
+                 (a no-op for plain ASCII passwords)
     plaintext  = AES-256-GCM decrypt, nonce from header, AAD = the 40 header bytes
     payload    = 4-byte big-endian length N, then N bytes of UTF-8 JSON, then
                  zero padding up to a multiple of 4096 bytes
@@ -111,7 +113,9 @@ def die(msg):
 def derive_key(password, salt, memory_kib, iterations, lanes):
     kdf = Argon2id(salt=salt, length=32, iterations=iterations,
                    lanes=lanes, memory_cost=memory_kib)
-    return kdf.derive(password.encode("utf-8"))
+    # NFKC: the same typed password can reach us as different bytes on different
+    # OSes/keyboards (composed vs decomposed accents). Identity for plain ASCII.
+    return kdf.derive(unicodedata.normalize("NFKC", password).encode("utf-8"))
 
 
 def canonical(db):
@@ -432,6 +436,10 @@ def prompt_new_password(label):
         if a != getpass.getpass("Repeat it: "):
             print("They don't match, try again.", file=sys.stderr)
             continue
+        if not a.isascii():
+            print("Note: non-ASCII characters are normalized (NFKC) before use, but you may "
+                  "not be able to type them on another machine's keyboard layout.",
+                  file=sys.stderr)
         return a
 
 
