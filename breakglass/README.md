@@ -28,6 +28,7 @@ pip install argon2-cffi         # only for bw-decrypt.py, and only for Argon2id 
 | `bw-decrypt.py` | Decrypt a password-protected Bitwarden export to readable JSON. | A password-protected Bitwarden `.json` export (not an account-protected one) |
 | `recovery-codes.py` | Manage 2FA recovery codes in one encrypted file. Marks codes used, wipes the screen after `use`. | A recovery vault (`.rcv`) |
 | `recovery-decrypt.py` | Last-resort decryptor for a recovery vault, in case `recovery-codes.py` is broken or lost. | A recovery vault (`.rcv`) |
+| `install-shims.py` | Optional convenience: creates launchers so every script here runs by name from anywhere (Windows and Linux). **Writes files outside this folder**, never inside it. | Only the script names in this folder |
 
 Every script has `-h`, except `bw-decrypt.py`.
 
@@ -74,6 +75,20 @@ python recovery-decrypt.py --input <vault.rcv>
 `--output <file>` writes the plaintext to disk. Avoid it unless you have to, and
 delete the result afterwards. Deleting isn't secure erasure on an SSD.
 
+**I want to run these by name from anywhere** (convenience only, never required)
+```
+python install-shims.py             # create or refresh the launchers
+python install-shims.py --remove    # delete the ones it created
+```
+It creates one tiny launcher per script: `.cmd` files in `%USERPROFILE%\bin` on Windows,
+`sh` wrappers in `~/.local/bin` on Linux. Afterwards `aegis-code -i <backup> -s github`
+works from any folder and any shell (cmd, PowerShell, Windows Terminal, bash).
+- If it says the launcher folder isn't on your PATH, add it (Windows: Win+R, `sysdm.cpl`,
+  Advanced, Environment Variables, user `Path`), then fully close and reopen the terminal.
+- The launchers contain this folder's absolute path, so run it again after moving the folder.
+- It only overwrites or deletes launchers it created itself, and never touches this folder.
+- On a USB stick or any machine where you haven't run it, `python <script>.py` still works.
+
 ## The recovery vault
 
 `recovery-codes.py` keeps recovery codes in one file, Argon2id + AES-256-GCM, plaintext
@@ -102,7 +117,8 @@ only in memory. The exact file format is documented in the docstring at the top 
   `.py` files and this README into git, but keep the vaults elsewhere anyway.
 - A script belongs here only if it needs nothing from the project: standard library
   plus `cryptography` (`argon2-cffi` for `bw-decrypt.py`), no imports from `src/`, no `.env`.
-- Prefer read-only. If a tool has to write, it says so at the top of the file.
+- Prefer read-only. If a tool has to write, it says so at the top of the file
+  (`install-shims.py` does: it writes launchers outside this folder, nothing inside it).
 - Changed a script? Test it against a mock vault before trusting it with real data.
 
 ## Third-party code
