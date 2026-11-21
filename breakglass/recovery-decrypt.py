@@ -17,6 +17,7 @@ import json
 import os
 import struct
 import sys
+import unicodedata
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -48,7 +49,7 @@ def main():
     if not (1 <= lanes <= 16 and 1 <= iterations <= 10 and 8 * lanes <= memory <= 1024 * 1024):
         die("out-of-range KDF settings in the header (damaged file?)")
 
-    password = getpass.getpass().encode("utf-8")
+    password = unicodedata.normalize("NFKC", getpass.getpass()).encode("utf-8")
     key = Argon2id(salt=salt, length=32, iterations=iterations,
                    lanes=lanes, memory_cost=memory).derive(password)
 
