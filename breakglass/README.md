@@ -23,7 +23,7 @@ pip install argon2-cffi         # only for bw-decrypt.py, and only for Argon2id 
 
 | Script | What it's for | Reads |
 |---|---|---|
-| `aegis-code.py` | Show current 2FA codes (TOTP, Steam, HOTP). Read-only, nothing is written to disk. | An encrypted Aegis backup, or a folder of them |
+| `aegis-codes.py` | Show current 2FA codes (TOTP, Steam, HOTP). Read-only, nothing is written to disk. | An encrypted Aegis backup, or a folder of them |
 | `aegis-decrypt.py` | Decrypt an Aegis backup to readable JSON. | An encrypted Aegis backup |
 | `bw-decrypt.py` | Decrypt a password-protected Bitwarden export to readable JSON. | A password-protected Bitwarden `.json` export (not an account-protected one) |
 | `recovery-codes.py` | Manage 2FA recovery codes in one encrypted file. Marks codes used, wipes the screen after `use`. | A recovery vault (`.rcv`) |
@@ -36,8 +36,8 @@ Every script has `-h`, except `bw-decrypt.py`.
 
 **I need a 2FA code and my phone is gone**
 ```
-python aegis-code.py -i <backup file or folder> -s github
-python aegis-code.py -i <backup file or folder>            # no -s: list all entries, no codes
+python aegis-codes.py -i <backup file or folder> -s github
+python aegis-codes.py -i <backup file or folder>            # no -s: list all entries, no codes
 ```
 If a service rejects the code, check this machine's clock first. TOTP is time-based,
 so a wrong system time gives valid-looking codes that never work.
