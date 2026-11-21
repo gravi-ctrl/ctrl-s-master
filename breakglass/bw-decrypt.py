@@ -1,11 +1,6 @@
-#!/usr/bin/env -S uv run --script
-# /// script
-# requires-python = ">=3.8"
-# dependencies = [
-#     "cryptography",
-#     "argon2-cffi",
-
-# pip install cryptography argon2-cffi
+#!/usr/bin/env python3
+# Needs: cryptography argon2-cffi
+# Offline: python -m pip install --no-index --find-links wheels cryptography argon2-cffi
 
 # Copyright © 2020-2022 Gurpreet Kang
 # All rights reserved.
