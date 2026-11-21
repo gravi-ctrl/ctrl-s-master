@@ -3,41 +3,40 @@
 Emergency tools for when ctrl-s-master, or the machine it runs on, isn't available.
 
 Everything in this folder is **standalone**: plain Python 3 plus the `cryptography`
-package (and `argon2-cffi` for one script). None of it imports anything from `src/`, reads `.env`, or needs the
+package. None of it imports anything from `src/`, reads `.env`, or needs the
 automation to be set up. Copy this folder to a USB stick or into your encrypted
 container and it works anywhere Python does.
 
    No internet? If the dir `wheels` exists, use:
    ```cmd
-   python -m pip install --no-index --find-links wheels cryptography argon2-cffi
+   python -m pip install --no-index --find-links wheels cryptography
    ```
    > Can be downloaded beforehand using:
-   > `python -m pip download cryptography argon2-cffi -d wheels`
+   > `python -m pip download cryptography -d wheels`
 
 ```
-pip install -U cryptography     # 44.0 or newer (Argon2id, used by the recovery tools)
-pip install argon2-cffi         # only for bw-decrypt.py, and only for Argon2id exports
+pip install -U cryptography     # 44.0 or newer (Argon2id, used by the recovery tools and bw-decrypt.py)
 ```
 
 ## What's here
 
 | Script | What it's for | Reads |
 |---|---|---|
-| `aegis-codes.py` | Show current 2FA codes (TOTP, Steam, HOTP). Read-only, nothing is written to disk. | An encrypted Aegis backup, or a folder of them |
+| `aegis-code.py` | Show current 2FA codes (TOTP, Steam, HOTP). Read-only, nothing is written to disk. | An encrypted Aegis backup, or a folder of them |
 | `aegis-decrypt.py` | Decrypt an Aegis backup to readable JSON. | An encrypted Aegis backup |
 | `bw-decrypt.py` | Decrypt a password-protected Bitwarden export to readable JSON. | A password-protected Bitwarden `.json` export (not an account-protected one) |
 | `recovery-codes.py` | Manage 2FA recovery codes in one encrypted file. Marks codes used, wipes the screen after `use`. | A recovery vault (`.rcv`) |
 | `recovery-decrypt.py` | Last-resort decryptor for a recovery vault, in case `recovery-codes.py` is broken or lost. | A recovery vault (`.rcv`) |
 | `install-shims.py` | Optional convenience: creates launchers so every script here runs by name from anywhere (Windows and Linux). **Writes files outside this folder**, never inside it. | Only the script names in this folder |
 
-Every script has `-h`, except `bw-decrypt.py`.
+Every script has `-h`.
 
 ## Quick recipes
 
 **I need a 2FA code and my phone is gone**
 ```
-python aegis-codes.py -i <backup file or folder> -s github
-python aegis-codes.py -i <backup file or folder>            # no -s: list all entries, no codes
+python aegis-code.py -i <backup file or folder> -s github
+python aegis-code.py -i <backup file or folder>            # no -s: list all entries, no codes
 ```
 If a service rejects the code, check this machine's clock first. TOTP is time-based,
 so a wrong system time gives valid-looking codes that never work.
@@ -52,12 +51,14 @@ used, then the screen is wiped. Marked the wrong one? `unuse <service>` undoes i
 
 **I need a password and only have a Bitwarden export**
 ```
-python bw-decrypt.py <export.json> --write <output.json>
+python bw-decrypt.py <export.json>                        # prints to the screen
+python bw-decrypt.py <export.json> --output <out.json>    # writes plaintext to disk
 ```
-Unlike the other decryptors, this one never prints to the screen: it **always writes
-plaintext to disk**. Without `--write` it creates `decrypted.json` in the current
-folder, and it overwrites a file of that name without asking. Run it from a throwaway
-folder and delete the result afterwards.
+It needs a **password-protected** export (Bitwarden: Export vault, `.json (Encrypted)`,
+Password protected), not an account-restricted one. Both PBKDF2 and Argon2id exports work.
+Output goes to the screen by default, so nothing touches the disk. `--output` refuses to
+overwrite an existing file and creates the new one readable only by you, but it is still
+plaintext: delete it afterwards. Deleting isn't secure erasure on an SSD.
 
 **I made a typo in a service name or note**
 ```
@@ -116,12 +117,16 @@ only in memory. The exact file format is documented in the docstring at the top 
 - **Vaults, backups and decrypted output never live here.** `.gitignore` only lets the
   `.py` files and this README into git, but keep the vaults elsewhere anyway.
 - A script belongs here only if it needs nothing from the project: standard library
-  plus `cryptography` (`argon2-cffi` for `bw-decrypt.py`), no imports from `src/`, no `.env`.
+  plus `cryptography`, no imports from `src/`, no `.env`.
 - Prefer read-only. If a tool has to write, it says so at the top of the file
   (`install-shims.py` does: it writes launchers outside this folder, nothing inside it).
 - Changed a script? Test it against a mock vault before trusting it with real data.
+- Bitwarden changes its formats now and then. About once a year, and after a big Bitwarden
+  update, make a fresh password-protected export and check that `bw-decrypt.py` still opens it.
 
 ## Third-party code
 
-`bw-decrypt.py` is by Thorsten Zirwes (2023), released under GPL-3.0 and based on
-BitwardenDecrypt by GurpreetKang. Keep the header at the top of the file intact.
+`bw-decrypt.py` is a reduced version of BitwardenDecrypt by Gurpreet Kang
+(https://github.com/GurpreetKang/BitwardenDecrypt, copyright 2020-2022, GPL-3.0). It only
+handles password-protected exports; the header of the file lists what was changed.
+It stays under GPL-3.0. Keep the header at the top of the file intact.
