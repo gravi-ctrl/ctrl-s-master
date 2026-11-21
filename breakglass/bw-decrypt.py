@@ -176,7 +176,7 @@ def decryptProtectedSymmetricKey(CipherString, masterkey, mastermac):
               "Rotating your account encryption key should resolve this for future backups of data.json.\n"
               "Unfortunately a new sync/backup will be required after rotaion. \n\n\n"
               "https://bitwarden.com/help/account-encryption-key/#rotate-your-encryption-key")
-        sys.exit(1)
+        exit(1)
 
     iv          = base64.b64decode(CipherString.split(".")[1].split("|")[0])
     ciphertext  = base64.b64decode(CipherString.split(".")[1].split("|")[1])
@@ -341,7 +341,7 @@ def checkFileFormatVersion(options):
     kdfIterations = None
     kdfMemory = None
     kdfParallelism = None
-    kdfType = None    
+    kdfType = None
     encKey = None
     encPrivateKey = None
 
@@ -363,7 +363,11 @@ def checkFileFormatVersion(options):
         # Email address is used as the salt in data.json, in password protected excrypted json exports there is an explicit salt key/value (and no email).
         email = datafile.get("salt")
         kdfIterations = int(datafile.get("kdfIterations"))
-        kdfType = 0         
+        if "kdfMemory" in datafile:
+            kdfMemory = int(datafile.get("kdfMemory"))
+        if "kdfParallelism" in datafile:
+            kdfParallelism = int(datafile.get("kdfParallelism"))
+        kdfType = int(datafile.get("kdfType", 0))
         encKey = datafile.get("encKeyValidation_DO_NOT_EDIT")
 
     # Check if data.json is 2024/new/old format.
@@ -382,7 +386,7 @@ def checkFileFormatVersion(options):
         # This occurs when the desktop app logs out and clears account data from data.json
         if (len(accounts) == 0):
             print(f"ERROR: No Accounts Found In {options.inputfile}")
-            sys.exit(1)
+            exit(1)
         
         # If data.json contains multiple accounts, prompt to select which to decrypt.
         if (len(accounts) > 1):
@@ -429,7 +433,7 @@ def checkFileFormatVersion(options):
         # This occurs when the desktop app logs out and clears account data from data.json
         if (len(accounts) == 0):
             print(f"ERROR: No Accounts Found In {options.inputfile}")
-            sys.exit(1)
+            exit(1)
         
         # If data.json contains multiple accounts, prompt to select which to decrypt.
         if (len(accounts) > 1):
