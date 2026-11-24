@@ -9,6 +9,9 @@ READ-ONLY GUARANTEE: the vault is opened for reading once and never written.
 There is no output flag, nothing is written to disk, and secrets are never
 printed. The only thing that ever leaves memory is the code you asked for.
 
+With --shell the password is asked once and the decrypted vault stays in this
+process's memory until you quit (Enter, q, Ctrl+C or Ctrl+D at the prompt).
+
 Codes rejected by a service? Check this machine's clock first: TOTP is time-based,
 so a wrong system time gives valid-looking codes that never work.
 
@@ -274,8 +277,9 @@ def preamble(entries):
               file=sys.stderr)
 
 
-def show_once(entries):
-    preamble(entries)
+def show_once(entries, with_preamble=True):
+    if with_preamble:
+        preamble(entries)
     now = time.time()
     print("\n".join(render(entries, now, NEXT_BELOW_ONCE)))
 
@@ -321,13 +325,14 @@ def match(entries, query):
 
 
 def pick(matches, term):
+    """Ask which of several matches to show. Returns a list (empty = skipped)."""
     print(f'Multiple matches for "{term}":', file=sys.stderr)
     for i, e in enumerate(matches, 1):
         print(f"  {i}) {label(e)}  [{e.get('type')}]", file=sys.stderr)
     while True:
-        raw = input("Number(s) comma-separated, 'a' for all, Enter to cancel: ").strip().lower()
+        raw = input("Pick (e.g. 3 or 3,4,5), a = all, Enter = skip: ").strip().lower()
         if not raw:
-            sys.exit(0)
+            return []
         if raw == "a":
             return matches
         try:
@@ -339,64 +344,112 @@ def pick(matches, term):
         print("Invalid choice.", file=sys.stderr)
 
 
-# ----------------------------------------------------------------- main ----
+def list_entries(entries):
+    for i, e in enumerate(sorted(entries, key=lambda x: label(x).lower()), 1):
+        note = "" if e.get("type") in SUPPORTED else "  (unsupported)"
+        print(f"{i:>3}. {label(e)}  [{e.get('type')}]{note}")
 
-def main():
-    p = argparse.ArgumentParser(
-        description="Read-only 2FA code viewer for an encrypted Aegis vault backup.",
-        epilog="Read-only: never modifies the vault and never writes anything to disk. "
-               "Codes rejected? Check this machine's clock first.",
-    )
-    p.add_argument("-i", "--input", required=True,
-                   help="Aegis vault backup file, or a folder of backups (the newest "
-                        "aegis-backup-* file in it is used)")
-    p.add_argument("-s", "--service",
-                   help="service(s) to look up, case-insensitive. Separate several with commas "
-                        "(e.g. 'github,steam'). Words separated by a space must all match one "
-                        "entry (e.g. 'google work'). Omit to list all entries without codes")
-    p.add_argument("-a", "--all", action="store_true",
-                   help="if a term matches several entries, show all of them instead of asking")
-    p.add_argument("-l", "--live", action="store_true",
-                   help="keep refreshing the codes every second until Ctrl+C")
-    args = p.parse_args()
 
-    db = load_db(resolve_vault(args.input))
-    entries = db.get("entries", [])
-
-    if not args.service:
-        for i, e in enumerate(sorted(entries, key=lambda x: label(x).lower()), 1):
-            note = "" if e.get("type") in SUPPORTED else "  (unsupported)"
-            print(f"{i:>3}. {label(e)}  [{e.get('type')}]{note}")
-        return
-
+def select(entries, query, take_all):
+    """Turn 'steam,google work' into a sorted list of supported entries."""
     chosen, seen = [], set()
-    for term in [t.strip() for t in args.service.split(",") if t.strip()]:
+    for term in [t.strip() for t in query.split(",") if t.strip()]:
         matches = match(entries, term)
         if not matches:
             print(f"no entry matches '{term}'", file=sys.stderr)
             continue
-        picked = matches if (args.all or len(matches) == 1) else pick(matches, term)
+        picked = matches if (take_all or len(matches) == 1) else pick(matches, term)
         for e in picked:
             if id(e) not in seen:
                 seen.add(id(e))
                 chosen.append(e)
-    if not chosen:
-        die("nothing matched (run without --service to list all entries)")
+    for e in chosen:
+        if e.get("type") not in SUPPORTED:
+            print(f"skipping {label(e)}: type '{e.get('type')}' is not supported", file=sys.stderr)
+    return sorted((e for e in chosen if e.get("type") in SUPPORTED),
+                  key=lambda e: label(e).lower())  # same order as the full listing
 
-    unsupported = [e for e in chosen if e.get("type") not in SUPPORTED]
-    for e in unsupported:
-        print(f"skipping {label(e)}: type '{e.get('type')}' is not supported", file=sys.stderr)
-    chosen = [e for e in chosen if e not in unsupported]
-    if not chosen:
-        die("nothing to show")
-    chosen.sort(key=lambda e: label(e).lower())  # same order as the full listing, not search order
 
-    if args.live and sys.stdout.isatty():
+def display(chosen, live, with_preamble=True):
+    if live and sys.stdout.isatty():
         show_live(chosen)
     else:
-        if args.live:
+        if live:
             print("not a terminal, ignoring --live", file=sys.stderr)
-        show_once(chosen)
+        show_once(chosen, with_preamble)
+
+
+def shell(entries, args):
+    """Prompt loop: the vault is already decrypted, so no further passwords."""
+    print("Type services like -s. ? lists all. Enter, q or Ctrl+D quits.", file=sys.stderr)
+    while True:
+        query = ""
+        try:
+            query = input("> ").strip()
+            if query.lower() in ("", "q", "quit", "exit"):
+                break
+            if query in ("?", "list"):
+                list_entries(entries)
+                continue
+            chosen = select(entries, query, args.all)
+        except (KeyboardInterrupt, EOFError):
+            print()
+            if not query:  # interrupted at the prompt itself: leave
+                break
+            continue  # interrupted inside a pick menu: back to the prompt
+        if chosen:
+            display(chosen, args.live, with_preamble=False)
+
+
+# ----------------------------------------------------------------- main ----
+
+def main():
+    p = argparse.ArgumentParser(
+        usage="%(prog)s -i VAULT [-s SERVICES] [-a] [-l] [-r]",
+        description="Read-only 2FA code viewer for an encrypted Aegis vault backup.",
+        epilog="Several matches: pick by number (3 or 3,4,5), a = all, Enter = skip.\n"
+               "At the -r prompt: ? lists entries, Enter/q quits, Ctrl+C stops a live view.\n"
+               "Never writes anything to disk. Codes rejected? Check this machine's clock.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p.add_argument("-i", "--input", required=True, metavar="VAULT",
+                   help="backup file, or a folder (newest aegis-backup-* is used)")
+    p.add_argument("-s", "--service", metavar="SERVICES",
+                   help="comma-separated: github,steam. Words in one term must all "
+                        "match one entry: 'google work'. Omit to list entries")
+    p.add_argument("-a", "--all", action="store_true",
+                   help="show every match instead of asking")
+    p.add_argument("-l", "--live", action="store_true",
+                   help="refresh codes every second until Ctrl+C")
+    p.add_argument("-r", "--shell", action="store_true",
+                   help="ask the password once, then look up services at a prompt "
+                        "(same syntax as -s; with -s, that runs first)")
+    args = p.parse_args()
+
+    if args.shell and not sys.stdin.isatty():
+        die("--shell needs an interactive terminal")
+
+    db = load_db(resolve_vault(args.input))
+    entries = db.get("entries", [])
+
+    if args.shell:
+        if not args.live:  # live mode redraws the clock itself
+            preamble(entries)
+        if args.service:
+            chosen = select(entries, args.service, args.all)
+            if chosen:
+                display(chosen, args.live, with_preamble=False)
+        shell(entries, args)
+        return
+
+    if not args.service:
+        list_entries(entries)
+        return
+
+    chosen = select(entries, args.service, args.all)
+    if not chosen:
+        die("nothing to show (run without --service to list all entries)")
+    display(chosen, args.live)
 
 
 if __name__ == "__main__":
