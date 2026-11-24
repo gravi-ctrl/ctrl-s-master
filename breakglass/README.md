@@ -27,7 +27,7 @@ pip install -U cryptography     # 44.0 or newer (Argon2id, used by the recovery 
 | `bw-decrypt.py` | Decrypt a password-protected Bitwarden export to readable JSON. | A password-protected Bitwarden `.json` export (not an account-protected one) |
 | `recovery-codes.py` | Manage 2FA recovery codes in one encrypted file. Marks codes used, wipes the screen after `use`. | A recovery vault (`.rcv`) |
 | `recovery-decrypt.py` | Last-resort decryptor for a recovery vault, in case `recovery-codes.py` is broken or lost. | A recovery vault (`.rcv`) |
-| `install-shims.py` | Optional convenience: creates launchers so every script here runs by name from anywhere (Windows and Linux). **Writes files outside this folder**, never inside it. | Only the script names in this folder |
+| `install-launchers.py` | Optional convenience: creates launchers so every script here runs by name from anywhere (Windows and Linux). **Writes files outside this folder**, never inside it. | Only the script names in this folder |
 
 Every script has `-h`.
 
@@ -78,8 +78,8 @@ delete the result afterwards. Deleting isn't secure erasure on an SSD.
 
 **I want to run these by name from anywhere** (convenience only, never required)
 ```
-python install-shims.py             # create or refresh the launchers
-python install-shims.py --remove    # delete the ones it created
+python install-launchers.py             # create or refresh the launchers
+python install-launchers.py --remove    # delete the ones it created
 ```
 It creates one tiny launcher per script: `.cmd` files in `%USERPROFILE%\bin` on Windows,
 `sh` wrappers in `~/.local/bin` on Linux. Afterwards `aegis-code -i <backup> -s github`
@@ -119,7 +119,7 @@ only in memory. The exact file format is documented in the docstring at the top 
 - A script belongs here only if it needs nothing from the project: standard library
   plus `cryptography`, no imports from `src/`, no `.env`.
 - Prefer read-only. If a tool has to write, it says so at the top of the file
-  (`install-shims.py` does: it writes launchers outside this folder, nothing inside it).
+  (`install-launchers.py` does: it writes launchers outside this folder, nothing inside it).
 - Changed a script? Test it against a mock vault before trusting it with real data.
 - Bitwarden changes its formats now and then. About once a year, and after a big Bitwarden
   update, make a fresh password-protected export and check that `bw-decrypt.py` still opens it.

@@ -25,7 +25,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 SELF = Path(__file__).name
 WIN = os.name == "nt"
-MARK = "breakglass-shim"
+MARK = "breakglass-launcher"
 
 
 def scripts():
