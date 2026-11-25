@@ -8,6 +8,8 @@ services (comma-separated). Supports TOTP, Steam Guard and HOTP entries.
 READ-ONLY GUARANTEE: the vault is opened for reading once and never written.
 There is no output flag, nothing is written to disk, and secrets are never
 printed. The only thing that ever leaves memory is the code you asked for.
+Core dumps are disabled (best effort, Unix) so a crash cannot write the
+decrypted vault to a core file.
 
 With --shell the password is asked once and the decrypted vault stays in this
 process's memory until you quit (Enter, q, Ctrl+C or Ctrl+D at the prompt).
@@ -31,6 +33,7 @@ import shutil
 import struct
 import sys
 import time
+import unicodedata
 from datetime import UTC, datetime
 
 from cryptography.exceptions import InvalidTag
@@ -132,19 +135,11 @@ def resolve_vault(path):
     return path
 
 
-def load_db(path):
-    """Read the vault file (read-only) and return the decrypted database."""
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except OSError as e:
-        die(f"cannot read {path}: {e.strerror}")
-    except json.JSONDecodeError:
-        die(f"{path} is not valid JSON")
-
+def open_vault(data):
+    """Return the database of a parsed vault, asking for the password if encrypted."""
     header = data.get("header") or {}
     if not header.get("slots"):  # unencrypted Aegis export
-        db = data.get("db")
+        db = data["db"]
         return db if isinstance(db, dict) else json.loads(db)
 
     for attempt in range(MAX_PASSWORD_ATTEMPTS):
@@ -156,6 +151,26 @@ def load_db(path):
             print("Wrong password." + (f" {left} attempt(s) left." if left else ""),
                   file=sys.stderr)
     die("too many wrong passwords")
+
+
+def load_db(path):
+    """Read the vault file (read-only) and return the decrypted database."""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except OSError as e:
+        die(f"cannot read {path}: {e.strerror}")
+    except ValueError:  # bad JSON, or a binary file that is not UTF-8 text
+        die(f"{path} is not valid JSON")
+
+    bad = f"{path} is not a valid Aegis vault, or it is damaged"
+    try:
+        db = open_vault(data)
+    except (KeyError, ValueError, TypeError, AttributeError, InvalidTag):
+        die(bad)
+    if not isinstance(db, dict):
+        die(bad)
+    return db
 
 
 # ---------------------------------------------------------------- codes ----
@@ -223,14 +238,40 @@ def group(code):
     return code
 
 
+def _char_width(ch):
+    """Terminal cells one character occupies: 0 (combining), 1 or 2 (wide: CJK, emoji)."""
+    if unicodedata.combining(ch) or unicodedata.category(ch) in ("Mn", "Me", "Cf"):
+        return 0
+    return 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
+
+
+def cell_width(s):
+    return sum(_char_width(c) for c in s)
+
+
+def clip(s, width):
+    """Longest prefix of s that fits in `width` terminal cells."""
+    used = 0
+    for i, ch in enumerate(s):
+        used += _char_width(ch)
+        if used > width:
+            return s[:i]
+    return s
+
+
+def pad(s, width):
+    """Left-align s in `width` terminal cells (str.ljust counts characters, not cells)."""
+    return s + " " * (width - cell_width(s))
+
+
 MAX_LABEL = 32  # longer labels are truncated so a row never wraps (keeps --live redraw intact)
 
 
 def fields(entry, now, next_below):
     """Return (label, code, timer, next) as display strings for one entry."""
     name = label(entry)
-    if len(name) > MAX_LABEL:
-        name = name[:MAX_LABEL - 2] + ".."
+    if cell_width(name) > MAX_LABEL:
+        name = clip(name, MAX_LABEL - 2) + ".."
     try:
         r = compute(entry, now)
     except Exception:  # e.g. a damaged secret: flag this row, keep the others working
@@ -252,9 +293,9 @@ def fields(entry, now, next_below):
 def render(entries, now, next_below):
     """Build one aligned line per entry (label | code | timer | next)."""
     rows = [fields(e, now, next_below) for e in entries]
-    w = [max(len(r[i]) for r in rows) for i in range(3)]
-    return [f"{l:<{w[0]}}  {c:<{w[1]}}  {t:<{w[2]}}" + (f"  {n}" if n else "")
-            for l, c, t, n in rows]
+    w = [max(cell_width(r[i]) for r in rows) for i in range(3)]
+    return [f"{pad(name, w[0])}  {pad(code, w[1])}  {pad(timer, w[2])}" + (f"  {nxt}" if nxt else "")
+            for name, code, timer, nxt in rows]
 
 
 def enable_ansi():
@@ -277,10 +318,32 @@ def preamble(entries):
               file=sys.stderr)
 
 
+def plain_codes(entries, now):
+    """Bare current codes (no label, spacing or timer) for piping; problems go to stderr."""
+    codes = []
+    for e in entries:
+        try:
+            r = compute(e, now)
+        except (KeyError, ValueError, TypeError):  # damaged secret, unknown algorithm
+            r = None
+        if r is None:
+            print(f"skipped {label(e)}: unsupported or invalid entry", file=sys.stderr)
+            continue
+        codes.append(r["codes"][0] if "codes" in r else r["code"])
+    return codes
+
+
 def show_once(entries, with_preamble=True):
     if with_preamble:
         preamble(entries)
     now = time.time()
+    if not sys.stdout.isatty():  # piped or redirected (e.g. `| xclip`): bare codes only
+        codes = plain_codes(entries, now)
+        if not codes:
+            die("no code to output")
+        # One code: no trailing newline, so a clipboard doesn't end up with one.
+        sys.stdout.write("\n".join(codes) + ("" if len(codes) == 1 else "\n"))
+        return
     print("\n".join(render(entries, now, NEXT_BELOW_ONCE)))
 
 
@@ -304,10 +367,10 @@ def show_live(entries):
             width = max(20, shutil.get_terminal_size((80, 24)).columns - 1)
 
             # Redraw the clock and codes together so the clock never interferes with the codes.
-            sys.stdout.write("\033[2K\r" + clock_line()[:width] + "\n")
+            sys.stdout.write("\033[2K\r" + clip(clock_line(), width) + "\n")
 
             for ln in render(entries, now, NEXT_BELOW_LIVE):  # clip: a wrapped row breaks the redraw
-                sys.stdout.write("\033[2K\r" + ln[:width] + "\n")
+                sys.stdout.write("\033[2K\r" + clip(ln, width) + "\n")
 
             sys.stdout.flush()
             first = False
@@ -330,7 +393,8 @@ def pick(matches, term):
     for i, e in enumerate(matches, 1):
         print(f"  {i}) {label(e)}  [{e.get('type')}]", file=sys.stderr)
     while True:
-        raw = input("Pick (e.g. 3 or 3,4,5), a = all, Enter = skip: ").strip().lower()
+        print("Pick (e.g. 3 or 3,4,5), a = all, Enter = skip: ", end="", file=sys.stderr, flush=True)
+        raw = input().strip().lower()
         if not raw:
             return []
         if raw == "a":
@@ -403,6 +467,15 @@ def shell(entries, args):
 
 # ----------------------------------------------------------------- main ----
 
+def disable_core_dumps():
+    """Best effort: a crash must not leave the decrypted vault in a core file."""
+    try:
+        import resource  # Unix only
+        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    except (ImportError, ValueError, OSError):
+        pass  # e.g. Windows: nothing to do, and this is only hardening
+
+
 def main():
     p = argparse.ArgumentParser(
         usage="%(prog)s -i VAULT [-s SERVICES] [-a] [-l] [-r]",
@@ -429,6 +502,7 @@ def main():
     if args.shell and not sys.stdin.isatty():
         die("--shell needs an interactive terminal")
 
+    disable_core_dumps()  # before the vault is decrypted into memory
     db = load_db(resolve_vault(args.input))
     entries = db.get("entries", [])
 
