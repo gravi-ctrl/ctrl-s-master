@@ -19,33 +19,10 @@ the screen after you have copied the code.
 
 Requires: pip install -U cryptography   (version 44.0 or newer, for Argon2id)
 
----------------------------------------------------------------------------
-FILE FORMAT (keep a copy of this on your paper sheet: it is all you need to
-write a decryptor if this script is ever lost)
-
-    offset  size  field
-    0       4     magic            b"RCVT"
-    4       1     format version   1
-    5       1     KDF id           1 = Argon2id
-    6       4     memory, KiB      big-endian
-    10      1     iterations (t)
-    11      1     lanes (p)
-    12      16    salt
-    28      12    nonce
-    40      ...   AES-256-GCM ciphertext + 16-byte tag
-
-    key        = Argon2id(password, salt, length=32, t, lanes=p, memory)
-                 where password = Unicode NFKC-normalized, then encoded as UTF-8
-                 (a no-op for plain ASCII passwords)
-    plaintext  = AES-256-GCM decrypt, nonce from header, AAD = the 40 header bytes
-    payload    = 4-byte big-endian length N, then N bytes of UTF-8 JSON, then
-                 zero padding up to a multiple of 4096 bytes
-    JSON       = {"v": 1, "services": {NAME: {"notes", "regenerated_at",
-                  "codes": [{"value", "used", "used_at"}]}}}
-
 Vault files use the extension .rcv (`init` adds it to a bare name). Backups are exact
-copies of the vault file, named recovery-backup-<date>-<time>.rcv, in VAULT.backups/.
----------------------------------------------------------------------------
+copies of the vault file, named recovery-backup-<date>-<time>.rcv (UTC), in VAULT.backups/.
+
+The file format is documented in the header of recovery-decrypt.py, the standalone decryptor.
 """
 
 import argparse
@@ -61,7 +38,7 @@ import unicodedata
 from datetime import datetime
 
 try:
-    from cryptography.exceptions import InvalidTag
+    from cryptography.exceptions import InvalidTag, UnsupportedAlgorithm
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     from cryptography.hazmat.primitives.kdf.argon2 import Argon2id
 except ImportError:
@@ -78,7 +55,10 @@ KDF_ARGON2ID = 1
 HEADER = struct.Struct(">4sBBIBB16s12s")  # magic, version, kdf, memory KiB, t, lanes, salt, nonce
 
 # Used for new vaults, and to upgrade older vaults on their next save.
-DEFAULT_MEMORY_KIB = 512 * 1024   # TODO(test): tune to ~1-2 s on your slowest realistic machine
+# Every open and every save runs the KDF at these settings, and a vault keeps the settings
+# it was saved with (they are never lowered). So the memory cost is also the RAM needed on
+# whatever machine you open the vault on in an emergency.
+DEFAULT_MEMORY_KIB = 512 * 1024
 DEFAULT_TIME = 3
 DEFAULT_LANES = 4
 
@@ -87,6 +67,8 @@ DEFAULT_LANES = 4
 MAX_MEMORY_KIB = 1024 * 1024
 MAX_TIME = 10
 MAX_LANES = 16
+assert (DEFAULT_MEMORY_KIB <= MAX_MEMORY_KIB and DEFAULT_TIME <= MAX_TIME
+        and DEFAULT_LANES <= MAX_LANES), "defaults must stay inside the limits parse_header enforces"
 
 PAD_TO = 4096                 # payload padded so file size doesn't reveal the code count
 MAX_VAULT_FILE = 1024 * 1024  # a vault is a few KiB; refuse to read anything bigger
@@ -111,11 +93,16 @@ def die(msg):
 # --------------------------------------------------------------- crypto ----
 
 def derive_key(password, salt, memory_kib, iterations, lanes):
-    kdf = Argon2id(salt=salt, length=32, iterations=iterations,
-                   lanes=lanes, memory_cost=memory_kib)
     # NFKC: the same typed password can reach us as different bytes on different
     # OSes/keyboards (composed vs decomposed accents). Identity for plain ASCII.
-    return kdf.derive(unicodedata.normalize("NFKC", password).encode("utf-8"))
+    secret = unicodedata.normalize("NFKC", password).encode("utf-8")
+    try:
+        kdf = Argon2id(salt=salt, length=32, iterations=iterations,
+                       lanes=lanes, memory_cost=memory_kib)
+        return kdf.derive(secret)
+    except UnsupportedAlgorithm:
+        die("this build of 'cryptography' has no Argon2id support "
+            "(the pip wheel does: pip install -U cryptography)")
 
 
 def canonical(db):
@@ -201,6 +188,20 @@ def _write_synced(fd, data):
         os.fsync(f.fileno())
 
 
+def _sync_dir(d):
+    """Make a rename/creation in directory `d` durable (POSIX; Windows can't fsync a dir)."""
+    if os.name == "nt":
+        return
+    try:
+        fd = os.open(d, os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    except OSError:
+        pass
+
+
 def resolve_vault_path(path, creating):
     """Give a bare vault name the .rcv extension.
 
@@ -208,13 +209,14 @@ def resolve_vault_path(path, creating):
     others: 'codes' finds 'codes.rcv' if that is what exists. An existing vault with
             no extension (made by an earlier version) keeps working as it is.
     """
-    if os.path.splitext(path)[1]:
-        return path
-    if creating:
-        return path + VAULT_EXT
-    if not os.path.exists(path) and os.path.exists(path + VAULT_EXT):
-        return path + VAULT_EXT
-    return path
+    if not os.path.splitext(path)[1]:
+        if creating:
+            path += VAULT_EXT
+        elif not os.path.exists(path) and os.path.exists(path + VAULT_EXT):
+            path += VAULT_EXT
+    # Follow symlinks: os.replace() would otherwise swap the link itself for a regular
+    # file, and the temp file and .backups folder would land next to the link.
+    return os.path.realpath(path)
 
 
 def backup_dir(vault):
@@ -235,7 +237,7 @@ def new_backup(vault, data):
     """Store `data` as a new, never-overwritten backup. Returns its name."""
     d = backup_dir(vault)
     os.makedirs(d, mode=0o700, exist_ok=True)
-    stamp = time.strftime("recovery-backup-%Y%m%d-%H%M%S")
+    stamp = time.strftime("recovery-backup-%Y%m%d-%H%M%S", time.gmtime())
     name, n = stamp + VAULT_EXT, 1
     while True:
         try:
@@ -245,6 +247,7 @@ def new_backup(vault, data):
             n += 1
             name = f"{stamp}-{n}{VAULT_EXT}"
     _write_synced(fd, data)
+    _sync_dir(d)
     return name
 
 
@@ -288,6 +291,7 @@ def commit(path, password, db, params, make_backup=True, expect=None):
         if make_backup and os.path.exists(path):
             backup = new_backup(path, read_vault_file(path))
         os.replace(tmp, path)
+        _sync_dir(os.path.dirname(os.path.abspath(path)))
     finally:
         if os.path.exists(tmp):
             os.remove(tmp)
@@ -409,18 +413,27 @@ def clear_screen():
         sys.stdout.flush()
 
 
-def mask(code):
-    """First character + last 3 (last 2 for short codes). The first character is
-    there so a stray prefix (a bullet, '1.', a quote) is visible at a glance."""
+def mask(code, lead=False):
+    """Last 2 characters only, so a stored code can't be guessed from a listing that
+    stays in scrollback. `lead=True` (used only while reviewing freshly entered codes,
+    which `add` wipes afterwards) also shows the first character, so a stray prefix
+    (a bullet, '1.', a quote) is visible at a glance."""
     if len(code) <= 4:
         return "*" * len(code)
-    tail = 3 if len(code) >= 8 else 2
-    return code[0] + "*" * (len(code) - 1 - tail) + code[-tail:]
+    head = code[0] if lead else ""
+    return head + "*" * (len(code) - len(head) - 2) + code[-2:]
 
 
 def has_control_chars(text):
     """True for terminal control characters (escape sequences and the like)."""
     return any(unicodedata.category(ch) == "Cc" for ch in text)
+
+
+def has_invisible_chars(text):
+    """Control or format characters (zero-width space, BOM, bidi marks): a real code
+    never has them, but copying from a web page can add them. Codes only: notes and
+    names may legitimately contain some format characters (RTL text)."""
+    return any(unicodedata.category(ch) in ("Cc", "Cf") for ch in text)
 
 
 def now_iso():
@@ -610,13 +623,14 @@ def review_codes(codes, allow_empty=False):
         if allow_empty:
             return []
         die("no codes found")
-    bad = sum(1 for c in unique if has_control_chars(c))
+    bad = sum(1 for c in unique if has_invisible_chars(c))
     if bad:
-        die(f"{bad} code(s) contain control characters, which a real code never has. "
+        die(f"{bad} code(s) contain control or invisible characters (a zero-width space from a web page?), "
+            "which a real code never has. "
             "Nothing was stored; check where the codes came from.")
     print(f"\nRead {len(unique)} code(s):")
     for i, c in enumerate(unique, 1):
-        print(f"  {i:>2}) {mask(c)}")
+        print(f"  {i:>2}) {mask(c, lead=True)}")
     if len(unique) != len(codes):
         print(f"WARNING: {len(codes) - len(unique)} duplicate(s) removed.")
     lengths = sorted({len(c) for c in unique})
@@ -664,6 +678,9 @@ def cmd_add(args):
         codes = review_codes(codes_from_file(args.from_file))
     else:
         codes = review_codes(codes_from_paste(skippable=args.notes), allow_empty=args.notes)
+    if existing and not codes:
+        die("no codes given. To change only the notes of an existing service, "
+            "use the note command.")
     notes = []
     if args.notes:
         notes = notes_from_paste()
@@ -671,9 +688,6 @@ def cmd_add(args):
             print(f"\nRead {len(notes)} note line(s).")
     if not codes and not notes:
         die("nothing to store")
-    if existing and not codes:
-        die("no codes given. To change only the notes of an existing service, "
-            "use the note command.")
 
     if input(f"\nStore these under '{name}'? [y/N]: ").strip().lower() != "y":
         print("Cancelled.")
@@ -778,6 +792,10 @@ def cmd_use(args):
             code["used"], code["used_at"] = True, now_iso()
             saving = True
             message = f"{mask(code['value'])} marked as used, " + v.save()
+    except SystemExit:
+        # die() inside v.save(): the code was shown (and maybe copied) but not recorded
+        print("The code was shown but was NOT marked as used in the vault.", file=sys.stderr)
+        raise
     except (KeyboardInterrupt, EOFError):
         message = ("Interrupted. Run 'show' to check whether the code was marked as used."
                    if saving else "Interrupted. The code was NOT marked as used.")
@@ -815,8 +833,10 @@ def cmd_rm(args):
         return
     name, svc = found
     unused = sum(1 for c in svc["codes"] if not c["used"])
-    typed = input(f"This permanently removes '{name}' and its {len(svc['codes'])} codes "
-                  f"({unused} unused).\nType the service name to confirm: ")
+    typed = input(f"This removes '{name}' and its {len(svc['codes'])} codes "
+                  f"({unused} unused) from the vault.\n"
+                  f"Backups of earlier versions keep it until they are pruned "
+                  f"(the last {KEEP_BACKUPS} are kept).\nType the service name to confirm: ")
     if typed.strip().lower() != name.lower():
         print("Cancelled.")
         return
